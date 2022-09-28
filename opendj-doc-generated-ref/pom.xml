@@ -20,7 +20,7 @@
     <parent>
         <artifactId>opendj-parent</artifactId>
         <groupId>org.openidentityplatform.opendj</groupId>
-        <version>4.4.9-SNAPSHOT</version>
+        <version>4.5.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>opendj-doc-generated-ref</artifactId>
@@ -359,7 +359,7 @@
         <profile>
             <id>man-pages</id>
             <activation>
-            		<activeByDefault>true</activeByDefault>
+            		<os><family>unix</family></os>
             	</activation>
             <build><finalName>${project.groupId}.${project.artifactId}</finalName>
                 <plugins>

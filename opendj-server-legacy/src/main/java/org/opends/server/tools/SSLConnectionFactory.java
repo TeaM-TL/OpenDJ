@@ -40,6 +40,7 @@ import javax.net.ssl.X509TrustManager;
 import org.opends.server.extensions.BlindTrustManagerProvider;
 import org.forgerock.i18n.slf4j.LocalizedLogger;
 import org.forgerock.opendj.ldap.SSLContextBuilder;
+import org.forgerock.opendj.ldap.TrustManagers;
 import org.opends.server.util.CollectionUtils;
 import org.opends.server.util.ExpirationCheckTrustManager;
 import org.opends.server.util.SelectableCertificateKeyManager;
@@ -47,7 +48,7 @@ import org.opends.server.util.SelectableCertificateKeyManager;
 import com.forgerock.opendj.cli.ConnectionFactoryProvider;
 
 import static org.opends.messages.ToolMessages.*;
-
+import static com.forgerock.opendj.util.StaticUtils.isFips;
 
 /**
  * This class provides SSL connection related utility functions.
@@ -120,18 +121,27 @@ public class SSLConnectionFactory
             new BlindTrustManagerProvider();
         trustManagers = blindTrustProvider.getTrustManagers();
       } else if (trustStorePath == null) {
-        trustManagers = PromptTrustManager.getTrustManagers();
-      } else
+			if (isFips()) {
+				TrustManager tm = TrustManagers.checkUsingPkcs11TrustStore();
+				trustManagers = new TrustManager[] { tm };
+			} else {
+				trustManagers = PromptTrustManager.getTrustManagers();
+			}
+	  } else
       {
         TrustManager[] tmpTrustManagers =
              getTrustManagers(KeyStore.getDefaultType(), null, trustStorePath,
                               trustStorePassword);
         trustManagers = new TrustManager[tmpTrustManagers.length];
-        for (int i=0; i < trustManagers.length; i++)
-        {
-          trustManagers[i] =
-               new ExpirationCheckTrustManager((X509TrustManager)
-                                               tmpTrustManagers[i]);
+        if (isFips()) {
+          trustManagers = tmpTrustManagers;
+        } else {
+          for (int i=0; i < trustManagers.length; i++)
+          {
+            trustManagers[i] =
+                 new ExpirationCheckTrustManager((X509TrustManager)
+                                                 tmpTrustManagers[i]);
+          }
         }
       }
       if(keyStorePath != null)

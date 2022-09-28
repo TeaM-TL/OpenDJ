@@ -22,6 +22,8 @@ import static org.opends.server.loggers.AccessLogger.logConnect;
 import static org.opends.server.util.ServerConstants.*;
 import static org.opends.server.util.StaticUtils.*;
 
+import static com.forgerock.opendj.util.StaticUtils.isFips;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -939,7 +941,11 @@ public final class LDAPConnectionHandler2 extends ConnectionHandler<LDAPConnecti
             final TrustManager[] trustManagers =
                     trustMgrDN == null ? null : serverContext.getTrustManagerProvider(trustMgrDN).getTrustManagers();
             SSLContext sslContext = SSLContext.getInstance(SSL_CONTEXT_INSTANCE_NAME);
-            sslContext.init(keyManagers, trustManagers, null);
+            if (isFips()) {
+            	sslContext.init(keyManagerProvider.getKeyManagers(), trustManagers, null);
+            } else {
+            	sslContext.init(keyManagers, trustManagers, null);
+            }
             return sslContext;
         } catch (Exception e) {
             logger.traceException(e);

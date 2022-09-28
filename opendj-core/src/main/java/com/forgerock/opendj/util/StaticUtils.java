@@ -16,22 +16,6 @@
  */
 package com.forgerock.opendj.util;
 
-import java.io.UnsupportedEncodingException;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.Locale;
-import java.util.ServiceLoader;
-import java.util.TimeZone;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-
 import org.forgerock.i18n.LocalizableException;
 import org.forgerock.i18n.LocalizableMessage;
 import org.forgerock.i18n.LocalizableMessageBuilder;
@@ -41,6 +25,16 @@ import org.forgerock.opendj.ldap.ProviderNotFoundException;
 import org.forgerock.opendj.ldap.spi.Provider;
 import org.forgerock.util.Reject;
 import org.forgerock.util.Utils;
+
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * Common utility methods.
@@ -785,5 +779,21 @@ public final class StaticUtils {
                     "There was no provider of type '%s' available.", providerClass.getName()));
         }
     }
+
+    public static boolean isFips() {
+    	java.security.Provider[] providers = java.security.Security.getProviders();
+		for (int i = 0; i < providers.length; i++) {
+			if (providers[i].getName().toLowerCase().contains("fips"))
+				return true;
+		}
+
+		return false;
+	}
+
+    public static void registerBcProvider(){
+        try {
+            FipsStaticUtils.registerBcProvider();
+        } catch (NoClassDefFoundError e) {}
+	}
 
 }

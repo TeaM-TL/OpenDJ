@@ -96,13 +96,13 @@ if "%SET_ENVIRONMENT_VARS_DONE%" == "false" goto setEnvironmentVars
 
 :setJavaHomeAndArgs
 if "%SET_JAVA_HOME_AND_ARGS_DONE%" == "true" goto end
-if not "%OPENDJ_JAVA_ARGS%" == "" goto checkEnvJavaHome
+rem if not "%OPENDJ_JAVA_ARGS%" == "" goto checkEnvJavaHome
 set SCRIPT_JAVA_ARGS_PROPERTY=%SCRIPT_NAME%.java-args
 call:readProperty %SCRIPT_JAVA_ARGS_PROPERTY%
-set OPENDJ_JAVA_ARGS=%PROPERTY_VALUE%
+set OPENDJ_JAVA_ARGS=%OPENDJ_JAVA_ARGS% %PROPERTY_VALUE%
 if not "%OPENDJ_JAVA_ARGS%" == "" goto checkEnvJavaHome
 call:readProperty default.java-args
-set OPENDJ_JAVA_ARGS=%PROPERTY_VALUE%
+set OPENDJ_JAVA_ARGS=%OPENDJ_JAVA_ARGS% %PROPERTY_VALUE
 if "%OPENDJ_JAVA_BIN%" == "" goto checkEnvJavaHome
 
 :endJavaHomeAndArgs
@@ -170,6 +170,9 @@ if %SET_ENVIRONMENT_VARS_DONE% == "true" goto end
 set PATH=%SystemRoot%;%PATH%
 set SCRIPT_NAME_ARG=-Dorg.opends.server.scriptName=%SCRIPT_NAME%
 set SET_ENVIRONMENT_VARS_DONE=true
+"%OPENDJ_JAVA_BIN%" --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --version > NUL 2>&1
+set RESULT_CODE=%errorlevel%
+if %RESULT_CODE% == 0 set OPENDJ_JAVA_ARGS=%OPENDJ_JAVA_ARGS% --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED
 goto scriptBegin
 
 :testJava
@@ -177,7 +180,7 @@ if "%OPENDJ_JAVA_ARGS%" == "" goto checkLegacyArgs
 :continueTestJava
 "%OPENDJ_JAVA_BIN%" %OPENDJ_JAVA_ARGS% org.opends.server.tools.CheckJVMVersion > NUL 2>&1
 set RESULT_CODE=%errorlevel%
-if %RESULT_CODE% == 13 goto notSupportedJavaHome
+if %RESULT_CODE% == 8 goto notSupportedJavaHome
 if not %RESULT_CODE% == 0 goto noValidJavaHome
 goto end
 
@@ -229,8 +232,8 @@ exit /B 0
 rem read the provided property from the configuration/java.properties and stores it in PROPERTY_VALUE variable
 :readProperty
 set PROPERTY_VALUE=
-set JAVA_PROPERTIES="%INSTALL_ROOT%\config\java.properties"
-if not exist %JAVA_PROPERTIES% goto:eof
-set CMD="findstr /b [^#]*%~1=.* %JAVA_PROPERTIES%"
+set JAVA_PROPERTIES=%INSTALL_ROOT%\config\java.properties
+if not exist "%JAVA_PROPERTIES%" goto:eof
+set CMD=findstr /b [^#]*%~1=.* "%JAVA_PROPERTIES%"
 for /f "tokens=2 delims==" %%a in ( '%CMD%' ) do set PROPERTY_VALUE=%%a
 goto:eof

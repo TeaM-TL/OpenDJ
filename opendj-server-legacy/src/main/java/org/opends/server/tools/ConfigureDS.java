@@ -43,6 +43,7 @@ import java.util.Set;
 
 import javax.crypto.Cipher;
 
+import com.forgerock.opendj.util.StaticUtils;
 import org.forgerock.i18n.LocalizableMessage;
 import org.forgerock.i18n.LocalizedIllegalArgumentException;
 import org.forgerock.opendj.adapter.server3x.Converters;
@@ -186,6 +187,9 @@ public class ConfigureDS
       + "ds-cfg-enabled: false" + NEW_LINE
       + "ds-cfg-trust-store-type: JCEKS" + NEW_LINE
       + "ds-cfg-trust-store-file: config/truststore" + NEW_LINE;
+
+  private static final String DN_ADMIN_TRUST_MANAGER = "cn=Administration,cn=Trust Manager Providers," + DN_CONFIG_ROOT;
+  private static final String DN_ADMIN_KEY_MANAGER = "cn=Administration,cn=Key Manager Providers," + DN_CONFIG_ROOT;
 
   /** The DN of the configuration entry defining the LDAP connection handler. */
   private static final String DN_LDAP_CONNECTION_HANDLER = "cn=LDAP Connection Handler," + DN_CONNHANDLER_BASE;
@@ -894,6 +898,10 @@ public class ConfigureDS
           throw new ConfigureDSException(e, LocalizableMessage.raw(e.toString()));
         }
       }
+
+      if (StaticUtils.isFips()) {
+          putAdminKeyManagerConfigAttribute(keyManagerProviderDN, DN_ADMIN_KEY_MANAGER);
+      }
     }
   }
 
@@ -909,6 +917,60 @@ public class ConfigureDS
             ATTR_KEYMANAGER_DN,
             CoreSchema.getDirectoryStringSyntax(),
             keyManagerProviderDN.getValue());
+      }
+      catch (final Exception e)
+      {
+        throw new ConfigureDSException(e, ERR_CONFIGDS_CANNOT_UPDATE_KEYMANAGER_REFERENCE.get(e));
+      }
+    }
+  }
+
+  private void putAdminKeyManagerConfigAttribute(final Argument keyManagerProviderDN, final String attributeDN)
+      throws ConfigureDSException
+  {
+    if (keyManagerProviderDN.isPresent())
+    {
+      try
+      {
+    	boolean isBcfks = keyManagerProviderDN.getValue().toLowerCase().startsWith("cn=bcfks");
+    	if (isBcfks) {
+	        updateConfigEntryWithAttribute(
+	                attributeDN,
+	                ATTR_KEYSTORE_TYPE,
+	                CoreSchema.getDirectoryStringSyntax(),
+	                "BCFKS");
+
+	        updateConfigEntryWithAttribute(
+	        		  attributeDN,
+	                  ATTR_KEYSTORE_FILE,
+	                  CoreSchema.getDirectoryStringSyntax(),
+	                  keyManagerPath.getValue());
+
+	        updateConfigEntryWithAttribute(
+	                attributeDN,
+	                ATTR_KEYSTORE_PIN_FILE,
+	                CoreSchema.getDirectoryStringSyntax(),
+	                "config/keystore.pin");
+    	} else {
+	        updateConfigEntryByRemovingAttribute(attributeDN, ATTR_KEYSTORE_TYPE);
+	        updateConfigEntryByRemovingAttribute(attributeDN, ATTR_KEYSTORE_FILE);
+	
+	        updateConfigEntryWithObjectClasses(
+	                attributeDN,
+	                "top", "ds-cfg-pkcs11-key-manager-provider", "ds-cfg-key-manager-provider");
+	
+	        updateConfigEntryWithAttribute(
+	            attributeDN,
+	            ATTR_KEYMANAGER_CLASS,
+	            CoreSchema.getDirectoryStringSyntax(),
+	            "org.opends.server.extensions.PKCS11KeyManagerProvider");
+	
+	        updateConfigEntryWithAttribute(
+	                attributeDN,
+	                ATTR_KEYSTORE_PIN_FILE,
+	                CoreSchema.getDirectoryStringSyntax(),
+	                "config/keystore.pin");
+    	}
       }
       catch (final Exception e)
       {
@@ -957,6 +1019,10 @@ public class ConfigureDS
       removeSSLCertNicknameAttribute(DN_HTTP_CONNECTION_HANDLER);
       removeSSLCertNicknameAttribute(DN_JMX_CONNECTION_HANDLER);
     }
+
+    if (StaticUtils.isFips()) {
+        putAdminTrustManagerConfigAttribute(trustManagerProviderDN, DN_ADMIN_TRUST_MANAGER);
+    }
   }
 
   private void putTrustManagerAttribute(final Argument arg, final String attributeDN) throws ConfigureDSException
@@ -970,6 +1036,41 @@ public class ConfigureDS
             ATTR_TRUSTMANAGER_DN,
             CoreSchema.getDirectoryStringSyntax(),
             trustManagerProviderDN.getValue());
+      }
+      catch (final Exception e)
+      {
+        throw new ConfigureDSException(e, ERR_CONFIGDS_CANNOT_UPDATE_TRUSTMANAGER_REFERENCE.get(e));
+      }
+    }
+  }
+
+  private void putAdminTrustManagerConfigAttribute(final Argument trustManagerProviderDN, final String attributeDN)
+      throws ConfigureDSException
+  {
+    if (keyManagerProviderDN.isPresent())
+    {
+      try
+      {
+    	boolean isBcfks = keyManagerProviderDN.getValue().toLowerCase().startsWith("cn=bcfks");
+    	if (isBcfks) {
+	        updateConfigEntryWithAttribute(
+	                attributeDN,
+	                ATTR_TRUSTSTORE_TYPE,
+	                CoreSchema.getDirectoryStringSyntax(),
+	                "BCFKS");
+
+	        updateConfigEntryWithAttribute(
+	        		  attributeDN,
+	                  ATTR_TRUSTSTORE_FILE,
+	                  CoreSchema.getDirectoryStringSyntax(),
+	                  keyManagerPath.getValue());
+
+	        updateConfigEntryWithAttribute(
+	                attributeDN,
+	                ATTR_TRUSTSTORE_PIN_FILE,
+	                CoreSchema.getDirectoryStringSyntax(),
+	                "config/keystore.pin");
+    	}
       }
       catch (final Exception e)
       {
@@ -1127,6 +1228,15 @@ public class ConfigureDS
     configHandler.replaceEntry(configEntry, Converters.from(newEntry));
   }
 
+  /** Update a config entry with the provided objectCLass parameters. */
+  private void updateConfigEntryWithObjectClasses(String entryDn, Object...objectCLasses)
+      throws DirectoryException, ConfigException
+  {
+    org.forgerock.opendj.ldap.Entry configEntry = configHandler.getEntry(DN.valueOf(entryDn));
+    final org.forgerock.opendj.ldap.Entry newEntry = putAttribute(configEntry, ATTR_OBJECTCLASS, CoreSchema.getOIDSyntax(), objectCLasses);
+    configHandler.replaceEntry(configEntry, newEntry, true);
+  }
+
   /**
    * Duplicate the provided entry, and put an attribute to the duplicated entry.
    * <p>
@@ -1158,7 +1268,7 @@ public class ConfigureDS
     {
       if (t.hasNameOrOID(attrName))
       {
-        entry.getUserAttributes().remove(t);
+    	duplicateEntry.getUserAttributes().remove(t);
         return duplicateEntry;
       }
     }
@@ -1167,7 +1277,7 @@ public class ConfigureDS
     {
       if (t.hasNameOrOID(attrName))
       {
-        entry.getOperationalAttributes().remove(t);
+    	duplicateEntry.getOperationalAttributes().remove(t);
         return duplicateEntry;
       }
     }

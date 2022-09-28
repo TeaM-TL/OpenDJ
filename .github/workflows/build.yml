@@ -1,0 +1,185 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-maven:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        java: [ '8','11','16','17','18']
+        os: [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ]
+    steps:
+    - name:  Install wine+rpm for distribution
+      if: runner.os == 'Linux'
+      shell: bash
+      run:   |
+          set -x -u -o pipefail
+          source /etc/os-release
+          # Get rid of packages installed from ppa:ondrej/php so that we will be able to install wine32:i386 without conflicts
+          # (see issue https://github.com/actions/virtual-environments/issues/4589)
+          # In detail we:
+          #   1. Remove all packages that ppa:ondrej/php has but plain Ubuntu doesn't, i.e. libzip4 and everything PHP
+          #   2. Revert (remaining) packages that ppa:ondrej/php and plain Ubuntu share, back to the plain Ubuntu version
+          #   3. Assert that no packages from ppa:ondrej/php are left installed
+          dpkg -l | grep '^ii' | fgrep deb.sury.org | awk '{print $2}' | grep '^php' \
+            | xargs -r -t sudo apt-get remove --yes libzip4
+          sudo apt update && sudo apt upgrade
+          dpkg -l | grep '^ii' | fgrep deb.sury.org | grep -v libpcre2-posix3 | awk '{print $2}' | sed "s,\$,/${UBUNTU_CODENAME}," \
+            | xargs -r -t sudo apt-get install --yes --no-install-recommends --allow-downgrades -V
+          ! dpkg -l | grep '^ii' | fgrep deb.sury.org
+          # Install 32bit Wine
+          sudo dpkg --add-architecture i386  # for wine32
+          sudo apt-get update  # again, due to new architecture
+          sudo apt-get install --yes --no-install-recommends -V \
+              wine-stable \
+              wine32:i386
+          wine --version
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: recursive
+    - name: Java ${{ matrix.Java }} (${{ matrix.os }})
+      uses: actions/setup-java@v2
+      with:
+        java-version: ${{ matrix.java }}
+        distribution: 'temurin'
+    - name: Cache Maven packages
+      uses: actions/cache@v3
+      with:
+         path: ~/.m2/repository
+         key: ${{ runner.os }}-m2-repository-${{ hashFiles('**/pom.xml') }}
+         restore-keys: ${{ runner.os }}-m2-repository
+    - name: Build with Maven
+      env:
+        MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 -Dmaven.wagon.http.retryHandler.requestSentEnabled=true -Dmaven.wagon.http.retryHandler.count=10
+      run: mvn --batch-mode --errors --update-snapshots package --file pom.xml
+    - name: Test on Unix
+      if: runner.os != 'Windows'
+      run:   |
+        opendj-server-legacy/target/package/opendj/setup -h localhost -p 1389 --ldapsPort 1636 --adminConnectorPort 4444 --enableStartTLS --generateSelfSignedCertificate --rootUserDN "cn=Directory Manager" --rootUserPassword password --baseDN dc=example,dc=com --addBaseEntry --cli --acceptLicense --no-prompt
+        opendj-server-legacy/target/package/opendj/bin/status --bindDN "cn=Directory Manager" --bindPassword password
+        opendj-server-legacy/target/package/opendj/bin/ldapsearch --hostname localhost --port 1636 --bindDN "cn=Directory Manager" --bindPassword password --useSsl --trustAll --baseDN "dc=example,dc=com" --searchScope base "(objectClass=*)" 1.1
+    - name: Test on Windows
+      if: runner.os == 'Windows'
+      run:   |
+        opendj-server-legacy\target\package\opendj\setup.bat -h localhost -p 1389 --ldapsPort 1636 --adminConnectorPort 4444 --enableStartTLS --generateSelfSignedCertificate --rootUserDN "cn=Directory Manager" --rootUserPassword password --baseDN dc=example,dc=com --addBaseEntry --cli --acceptLicense --no-prompt
+        opendj-server-legacy\target\package\opendj\bat\status.bat --bindDN "cn=Directory Manager" --bindPassword password
+        opendj-server-legacy\target\package\opendj\bat\ldapsearch.bat --hostname localhost --port 1636 --bindDN "cn=Directory Manager" --bindPassword password --useSsl --trustAll --baseDN "dc=example,dc=com" --searchScope base "(objectClass=*)" 1.1
+    - name: Upload artifacts OpenDJ Server
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.os }}-${{ matrix.java }}
+        retention-days: 5
+        path:  |
+            opendj-server-legacy/target/package/*.zip
+            opendj-ldap-toolkit/target/*.zip
+            opendj-packages/opendj-deb/opendj-deb-standard/target/*.deb
+            opendj-packages/opendj-rpm/opendj-rpm-standard/target/rpm/opendj/RPMS/noarch/*.rpm
+            opendj-packages/opendj-msi/opendj-msi-standard/target/*.msi
+            opendj-packages/opendj-docker/target/Dockerfile.zip
+            opendj-packages/opendj-openshift-template/*.yaml
+            opendj-doc-generated-ref/target/*.zip
+            opendj-dsml-servlet/target/*.war
+            opendj-rest2ldap-servlet/target/*.war
+  build-docker:
+    runs-on: 'ubuntu-latest'
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Get latest release version
+        shell: bash
+        run:   |
+          git fetch -t; export git_version_last="$(git describe --abbrev=0 --tags)" ; echo "last release: $git_version_last"
+          echo "release_version=$git_version_last" >> $GITHUB_ENV
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            localhost:5000/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ env.release_version }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          driver-opts: network=host
+      - name: Build image (default)
+        uses: docker/build-push-action@v2
+        continue-on-error: true
+        with:
+          context: ./opendj-packages/opendj-docker
+          file: ./opendj-packages/opendj-docker/Dockerfile
+          build-args: |
+            VERSION=${{ env.release_version }}
+          platforms: linux/amd64,linux/arm64/8
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Docker test
+        shell: bash
+        run: |
+          docker run --rm -it -d --name=test localhost:5000/${GITHUB_REPOSITORY,,}:${{ env.release_version }}
+          timeout 3m bash -c 'until docker inspect --format="{{json .State.Health.Status}}" test | grep -q \"healthy\"; do sleep 10; done'
+  build-docker-alpine:
+    runs-on: 'ubuntu-latest'
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Get latest release version
+        shell: bash
+        run:   |
+          git fetch -t; export git_version_last="$(git describe --abbrev=0 --tags)" ; echo "last release: $git_version_last"
+          echo "release_version=$git_version_last" >> $GITHUB_ENV
+      - name: Docker meta 
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            localhost:5000/${{ github.repository }}
+          tags: |
+            type=raw,value=alpine
+            type=raw,value=${{ env.release_version }}-alpine
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          driver-opts: network=host
+      - name: Build image
+        continue-on-error: true
+        uses: docker/build-push-action@v2
+        with:
+          context: ./opendj-packages/opendj-docker
+          file: ./opendj-packages/opendj-docker/Dockerfile-alpine
+          build-args: |
+            VERSION=${{ env.release_version }}
+          platforms: linux/amd64,linux/arm64/8, linux/s390x, linux/386, linux/arm/v7, linux/arm/v6, linux/ppc64le
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Docker test
+        shell: bash
+        run: |
+          docker run --rm -it -d --name=test localhost:5000/${GITHUB_REPOSITORY,,}:${{ env.release_version }}-alpine
+          timeout 3m bash -c 'until docker inspect --format="{{json .State.Health.Status}}" test | grep -q \"healthy\"; do sleep 10; done'

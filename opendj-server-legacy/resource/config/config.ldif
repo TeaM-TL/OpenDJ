@@ -693,6 +693,17 @@ ds-cfg-java-class: org.opends.server.extensions.PKCS11KeyManagerProvider
 ds-cfg-enabled: false
 ds-cfg-key-store-pin-file: config/keystore.pin
 
+dn: cn=BCFKS,cn=Key Manager Providers,cn=config
+objectClass: top
+objectClass: ds-cfg-key-manager-provider
+objectClass: ds-cfg-file-based-key-manager-provider
+cn: BCFKS
+ds-cfg-java-class: org.opends.server.extensions.FileBasedKeyManagerProvider
+ds-cfg-enabled: false
+ds-cfg-key-store-type: BCFKS
+ds-cfg-key-store-file: config/keystore.bcfks
+ds-cfg-key-store-pin-file: config/keystore.pin
+
 dn: cn=Loggers,cn=config
 objectClass: top
 objectClass: ds-cfg-branch
@@ -1117,6 +1128,24 @@ objectClass: ds-cfg-password-storage-scheme
 objectClass: ds-cfg-pbkdf2-password-storage-scheme
 cn: PBKDF2
 ds-cfg-java-class: org.opends.server.extensions.PBKDF2PasswordStorageScheme
+ds-cfg-enabled: true
+
+dn: cn=PBKDF2-HMAC-SHA256,cn=Password Storage Schemes,cn=config
+objectClass: top
+objectClass: ds-cfg-password-storage-scheme
+objectClass: ds-cfg-pbkdf2-password-storage-scheme
+objectClass: ds-cfg-pbkdf2-hmac-sha256-password-storage-scheme
+cn: PBKDF2-HMAC-SHA256
+ds-cfg-java-class: org.opends.server.extensions.PBKDF2HmacSHA256PasswordStorageScheme
+ds-cfg-enabled: true
+
+dn: cn=PBKDF2-HMAC-SHA512,cn=Password Storage Schemes,cn=config
+objectClass: top
+objectClass: ds-cfg-password-storage-scheme
+objectClass: ds-cfg-pbkdf2-password-storage-scheme
+objectClass: ds-cfg-pbkdf2-hmac-sha512-password-storage-scheme
+cn: PBKDF2-HMAC-SHA512
+ds-cfg-java-class: org.opends.server.extensions.PBKDF2HmacSHA512PasswordStorageScheme
 ds-cfg-enabled: true
 
 dn: cn=PKCS5S2,cn=Password Storage Schemes,cn=config
@@ -1547,6 +1576,17 @@ ds-cfg-java-class: org.opends.server.extensions.FileBasedTrustManagerProvider
 ds-cfg-enabled: false
 ds-cfg-trust-store-type: PKCS12
 ds-cfg-trust-store-file: config/truststore.p12
+
+dn: cn=BCFKS,cn=Trust Manager Providers,cn=config
+objectClass: top
+objectClass: ds-cfg-trust-manager-provider
+objectClass: ds-cfg-file-based-trust-manager-provider
+cn: BCFKS
+ds-cfg-java-class: org.opends.server.extensions.FileBasedTrustManagerProvider
+ds-cfg-enabled: false
+ds-cfg-trust-store-type: BCFKS
+ds-cfg-trust-store-file: config/truststore.bcfks
+ds-cfg-trust-store-pin-file: config/keystore.pin
 
 dn: cn=Virtual Attributes,cn=config
 objectClass: top

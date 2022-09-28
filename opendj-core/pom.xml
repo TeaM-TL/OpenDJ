@@ -20,7 +20,7 @@
     <parent>
         <artifactId>opendj-parent</artifactId>
         <groupId>org.openidentityplatform.opendj</groupId>
-        <version>4.4.9-SNAPSHOT</version>
+        <version>4.5.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>opendj-core</artifactId>
@@ -90,10 +90,31 @@
 		  <groupId>com.sun.xml.bind</groupId>
 		  <artifactId>jaxb-impl</artifactId>
 		</dependency>
+
+	    <!-- BC FIPS Provider libs -->
+	    <dependency>
+	      <groupId>org.bouncycastle</groupId>
+	      <artifactId>bc-fips</artifactId>
+	      <version>${bc.fips.version}</version>
+	    </dependency>
+	
+	    <dependency>
+	      <groupId>org.bouncycastle</groupId>
+	      <artifactId>bctls-fips</artifactId>
+	      <version>${bctls.fips.version}</version>
+	    </dependency>
+	    
+	     <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
     </dependencies>
 
 
     <properties>
+        <bc.fips.version>1.0.2.3</bc.fips.version>
+        <bctls.fips.version>1.0.13</bctls.fips.version>
+
         <opendj.osgi.import.additional>
             com.sun.security.auth*;resolution:=optional
         </opendj.osgi.import.additional>

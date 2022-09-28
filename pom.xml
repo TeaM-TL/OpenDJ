@@ -18,7 +18,7 @@
     <modelVersion>4.0.0</modelVersion>
 	<groupId>org.openidentityplatform.opendj</groupId>
     <artifactId>opendj-parent</artifactId>
-	<version>4.4.9-SNAPSHOT</version>
+	<version>4.5.2-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>OpenDJ Directory Services Project</name>
@@ -34,7 +34,7 @@
         <product.locales>ca_ES,es,de,fr,ja,ko,pl,zh_CN,zh_TW</product.locales>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <localized.jars.classifier>i18n</localized.jars.classifier>
-        <freemarker.version>2.3.28</freemarker.version>
+        <freemarker.version>2.3.31</freemarker.version>
         <grizzly-framework.version>2.4.4</grizzly-framework.version>
         <metrics-core.version>3.1.2</metrics-core.version>
         <maven.compiler.target>1.8</maven.compiler.target>
@@ -78,9 +78,9 @@
 
     <licenses>
         <license>
-            <name>CDDL-1.0</name>
-            <url>http://www.opensource.org/licenses/CDDL-1.0</url>
-            <comments>Common Development and Distribution License (CDDL) 1.0.
+            <name>CDDL-1.1</name>
+            <url>https://github.com/OpenIdentityPlatform/OpenDJ/blob/master/LICENSE.md</url>
+            <comments>Common Development and Distribution License (CDDL) 1.1.
                 This license applies to OpenDJ source code as indicated in the
                 source files.
             </comments>
@@ -110,11 +110,6 @@
   	</scm>
 	<repositories>
 		<repository>
-			<id>ossrh-releases</id>
-			<name>Sonatype OSS</name>
-			<url>https://oss.sonatype.org/content/repositories/releases/</url>
-		</repository>
-		<repository>
 			<id>ossrh-snapshots</id>
 			<name>Sonatype OSS Repository</name>
 			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
@@ -122,11 +117,6 @@
 		</repository>
 	</repositories>
 	<pluginRepositories>
-		<pluginRepository>
-			<id>ossrh-releases</id>
-			<name>Sonatype OSS</name>
-			<url>https://oss.sonatype.org/content/repositories/releases/</url>
-		</pluginRepository>
 		<pluginRepository>
 			<id>ossrh-snapshots</id>
 			<name>Sonatype OSS Repository</name>
@@ -154,7 +144,7 @@
         	<dependency>
         		<groupId>org.openidentityplatform.commons</groupId>
         		<artifactId>parent</artifactId>
-        		<version>2.0.9</version>
+        		<version>2.0.17-SNAPSHOT</version>
         		<type>pom</type>
         		<scope>import</scope>
         	</dependency>
@@ -277,6 +267,7 @@
         <module>opendj-rest2ldap-servlet</module>
         <module>opendj-server</module>
         <module>opendj-server-example-plugin</module>
+        <module>opendj-server-msad-plugin</module>
         <module>opendj-legacy</module>
         <module>opendj-server-legacy</module>
         <module>opendj-dsml-servlet</module>
@@ -329,13 +320,13 @@
 			    </execution>
 			  </executions>
 			  <configuration>
-			  	<failOnError>false</failOnError>
+			  	<doclint>none</doclint>
 			  </configuration>
 			</plugin>
 			<plugin>
 		      <groupId>org.sonatype.plugins</groupId>
 		      <artifactId>nexus-staging-maven-plugin</artifactId>
-		      <version>1.6.7</version>
+		      <version>1.6.12</version>
 		      <extensions>true</extensions>
 		      <configuration>
 		        <serverId>ossrh</serverId>
@@ -345,6 +336,13 @@
 		        <keepStagingRepositoryOnFailure>true</keepStagingRepositoryOnFailure>
 		        <keepStagingRepositoryOnCloseRuleFailure>true</keepStagingRepositoryOnCloseRuleFailure>
 		      </configuration>
+		      <dependencies>
+		      	<dependency>
+			        <groupId>com.google.guava</groupId>
+			        <artifactId>guava</artifactId>
+			        <version>15.0</version>
+			     </dependency>
+		      </dependencies>
 		    </plugin>
         </plugins>
 
@@ -359,7 +357,7 @@
                     <inherited>true</inherited>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.1</version>
+                    <version>3.10.1</version>
                     <configuration>
                         <fork>true</fork>
                         <compilerArgs>
@@ -443,9 +441,8 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M4</version>
+                    <version>3.0.0-M4</version> <!-- M6 DecodeException but got java.nio.BufferOverflowException -->
                     <configuration>
-                        <argLine>-server</argLine>
                         <properties>
                             <property>
                                 <name>usedefaultlisteners</name>
@@ -708,7 +705,15 @@
                 <module>opendj-packages</module>
             </modules>
         </profile>
-
+		<profile>		
+	      <id>jdk16.options</id>
+	      <activation>
+	        <jdk>[16,)</jdk>
+	      </activation>
+	      <properties>
+	        <argLine>--add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.net=ALL-UNNAMED  --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.util.regex=ALL-UNNAMED --add-opens java.base/java.security=ALL-UNNAMED --add-opens java.naming/javax.naming.spi=ALL-UNNAMED</argLine>
+	      </properties>
+	    </profile>
 		<profile>
 	        <id>release-sign-artifacts</id>
 	        <activation>
@@ -733,6 +738,12 @@
 				          <goals>
 				            <goal>sign</goal>
 				          </goals>
+				          <configuration>
+				                <gpgArguments>
+				                    <arg>--pinentry-mode</arg>
+				                    <arg>loopback</arg>
+				                </gpgArguments>
+				            </configuration>
 				        </execution>
 				      </executions>
 				    </plugin>

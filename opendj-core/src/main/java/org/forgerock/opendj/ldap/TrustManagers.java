@@ -24,6 +24,8 @@ import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateNotYetValidException;
@@ -498,7 +500,10 @@ public final class TrustManagers {
         Reject.ifNull(file);
 
         final File trustStoreFile = new File(file);
-        final String trustStoreFormat = format != null ? format : KeyStore.getDefaultType();
+
+        boolean isFips = isFips();
+        final String defaultType = isFips ? "JKS" : KeyStore.getDefaultType();
+        final String trustStoreFormat = format != null ? format : defaultType;
 
         final KeyStore keyStore = KeyStore.getInstance(trustStoreFormat);
         try (FileInputStream fos = new FileInputStream(trustStoreFile)) {
@@ -516,6 +521,32 @@ public final class TrustManagers {
         }
         throw new NoSuchAlgorithmException();
     }
+
+    public static X509TrustManager checkUsingPkcs11TrustStore() throws GeneralSecurityException, IOException {
+        final KeyStore keyStore = KeyStore.getInstance("PKCS11");
+        keyStore.load(null, null);
+
+        final TrustManagerFactory tmf =
+                TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+
+        for (final TrustManager tm : tmf.getTrustManagers()) {
+            if (tm instanceof X509TrustManager) {
+                return (X509TrustManager) tm;
+            }
+        }
+        throw new NoSuchAlgorithmException();
+    }
+
+    public static boolean isFips() {
+		Provider[] providers = Security.getProviders();
+		for (int i = 0; i < providers.length; i++) {
+			if (providers[i].getName().toLowerCase().contains("fips"))
+				return true;
+		}
+
+		return false;
+	}
 
     /**
      * Wraps the provided {@code X509TrustManager} by adding additional
