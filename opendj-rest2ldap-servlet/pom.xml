@@ -19,7 +19,7 @@
   <parent>
     <groupId>org.openidentityplatform.opendj</groupId>
     <artifactId>opendj-parent</artifactId>
-    <version>4.5.2-SNAPSHOT</version>
+    <version>5.0.3-SNAPSHOT</version>
   </parent>
 
   <artifactId>opendj-rest2ldap-servlet</artifactId>
@@ -98,6 +98,52 @@
           </webResources>
         </configuration>
       </plugin>
+      <plugin>
+	      <groupId>org.codehaus.cargo</groupId>
+          <artifactId>cargo-maven3-plugin</artifactId>
+          <extensions>true</extensions>
+		  <executions>
+			    <execution>
+			      <id>start</id>
+			      <phase>pre-integration-test</phase>
+			      <goals>
+			        <goal>start</goal>
+			      </goals>
+			    </execution>
+			    <execution>
+			      <id>stop</id>
+			      <phase>post-integration-test</phase>
+			      <goals>
+			        <goal>stop</goal>
+			      </goals>
+			    </execution>
+			</executions>
+            <configuration>
+                <container>
+                    <containerId>${maven.cargo.containerId}</containerId>
+                    <type>embedded</type>
+                    <systemProperties>
+                        <file.encoding>UTF-8</file.encoding>
+                    </systemProperties>
+                    <timeout>350000</timeout>
+                </container>
+                <deployables>
+                    <deployable>
+                    	<type>war</type>
+                        <properties>
+                            <context>rest2ldap</context>
+                        </properties>
+                        <pingURL>http://localhost:8080/rest2ldap/</pingURL>
+                    </deployable>
+                </deployables>
+				<configuration>
+			    	<properties>
+			        	<cargo.rmi.port>8206</cargo.rmi.port>
+			        	<cargo.jvmargs>-XX:+UseG1GC -server</cargo.jvmargs>
+			        </properties>
+			    </configuration>
+            </configuration>
+        </plugin>
     </plugins>
   </build>
 </project>

@@ -13,12 +13,14 @@
  *
  * Copyright 2008 Sun Microsystems, Inc.
  * Portions Copyright 2013-2016 ForgeRock AS.
+ * Portions Copyright 2023-2025 3A Systems, LLC.
  */
 package org.opends.server;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
@@ -154,8 +156,45 @@ public class TestListener extends TestListenerAdapter implements IReporter {
   public void onStart(ITestContext testContext) {
     super.onStart(testContext);
 
+    if (testContext.getAllTestMethods().length>0) {
+    	TestCaseUtils.setTestName(testContext.getAllTestMethods()[0].getInstance().getClass().getName());
+    }
+    long testTimeout = 0;
+    try {
+      testTimeout = Long.parseLong(System.getProperty("org.opends.test.timeout", "0"));
+    } catch (NumberFormatException ignored) {}
+
+    for (int i = 0; i < testContext.getAllTestMethods().length; i++) {
+      testContext.getAllTestMethods()[i].setTimeOut(testTimeout);
+    }
+    if(System.getProperty("org.opends.test.trace.pattern") != null && testContext.getAllTestMethods().length > 0) {
+      String tracePattern = System.getProperty("org.opends.test.trace.pattern");
+      if(testContext.getAllTestMethods()[0].getInstance().getClass().getName().matches(tracePattern)) {
+        System.setProperty("org.opends.server.debug.target.1", "_global:enabled");
+        TestCaseUtils.setupTrace();
+      }
+    }
+
     // Delete the previous report if it's there.
     new File(testContext.getOutputDirectory(), REPORT_FILE_NAME).delete();
+  }
+
+  @Override
+  public void onFinish(ITestContext testContext) {
+	super.onFinish(testContext);
+	
+	if (testContext.getAllTestMethods().length>0) {
+		if (testContext.getFailedConfigurations().size()==0 && testContext.getFailedTests().size()==0) {
+		    try {
+				TestCaseUtils.cleanTestPath();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}else {
+			originalSystemErr.println("check state: "+paths.unitRoot);
+		}
+	}
+    System.clearProperty("org.opends.server.debug.target.1");
   }
 
   @Override
@@ -224,7 +263,6 @@ public class TestListener extends TestListenerAdapter implements IReporter {
         && countTestsWithStatus(ITestResult.SKIP) != 0) {
       originalSystemErr.println("There were no explicit test failures,"
           + " but some tests were skipped (possibly due to errors in @Before* or @After* methods).");
-      System.exit(-1);
     }
   }
 
@@ -277,7 +315,7 @@ public class TestListener extends TestListenerAdapter implements IReporter {
     originalSystemErr.println("Test classes run interleaved: " + _classesWithTestsRunInterleaved.size());
 
     // Try to hard to reclaim as much memory as possible.
-    runGc();
+    //runGc();
 
     originalSystemErr.printf("Final amount of memory in use: %.1f MB",
             (usedMemory() / (1024.0 * 1024.0))).println();
@@ -313,6 +351,7 @@ public class TestListener extends TestListenerAdapter implements IReporter {
   @Override
   public void onTestStart(ITestResult tr) {
     super.onTestStart(tr);
+    originalSystemOut.println("-- Executing test: " +  tr.getMethod());
 
     enforceTestClassTypeAndAnnotations(tr);
     checkForInterleavedBetweenClasses(tr);
@@ -336,6 +375,11 @@ public class TestListener extends TestListenerAdapter implements IReporter {
   public void onTestFailure(ITestResult tr) {
     super.onTestFailure(tr);
     reportTestFailed(tr);
+    printThreadDump();
+  }
+
+  private void printThreadDump() {
+    originalSystemErr.println(TestCaseUtils.generateThreadDump());
   }
 
   private void reportTestFailed(ITestResult tr)
@@ -364,6 +408,7 @@ public class TestListener extends TestListenerAdapter implements IReporter {
     appendFailureInfo(failureInfo);
 
     failureInfo.append(EOL).append(EOL);
+    originalSystemErr.printf("[%s]  ",TEST_PROGESS_TIME_FORMAT.format(new Date()));
     originalSystemErr.print(EOL + EOL + EOL + "                 T E S T   S K I P P E D ! ! !" + EOL + EOL);
     originalSystemErr.print(failureInfo);
     originalSystemErr.print(DIVIDER_LINE + EOL + EOL);

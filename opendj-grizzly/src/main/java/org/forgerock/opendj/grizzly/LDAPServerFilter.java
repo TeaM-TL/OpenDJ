@@ -13,6 +13,7 @@
  *
  * Copyright 2010 Sun Microsystems, Inc.
  * Portions Copyright 2012-2016 ForgeRock AS.
+ * Portions Copyright 2017-2024 3A Systems, LLC.
  */
 package org.forgerock.opendj.grizzly;
 
@@ -84,7 +85,8 @@ import com.forgerock.reactive.Completable;
 import com.forgerock.reactive.ReactiveHandler;
 import com.forgerock.reactive.Stream;
 
-import io.reactivex.internal.util.BackpressureHelper;
+import io.reactivex.rxjava3.exceptions.OnErrorNotImplementedException;
+import org.openidentityplatform.rxjava3.internal.util.BackpressureHelper;
 
 /**
  * Grizzly filter implementation for decoding LDAP requests and handling server side logic for SSL and SASL operations
@@ -388,7 +390,7 @@ public final class LDAPServerFilter extends BaseFilter {
                     return false;
                 }
                 SSLUtils.setSSLEngine(connection, sslEngine);
-                
+
                 Properties props = System.getProperties();
 
                 // Workaround for PKCS11
@@ -396,9 +398,9 @@ public final class LDAPServerFilter extends BaseFilter {
                 if ("none".equalsIgnoreCase(keyStoreFile)) {
                 	System.setProperty(SSLContextConfigurator.TRUST_STORE_FILE, "NONE");
                 }
-                
+
                 SSLFilter sslFilter = new SSLFilter();
-                sslFilter.setHandshakeTimeout(getLongProperty("org.forgerock.opendj.grizzly.handshakeTimeout", sslFilter.getHandshakeTimeout(TimeUnit.MILLISECONDS)), TimeUnit.MILLISECONDS);
+                sslFilter.setHandshakeTimeout(getLongProperty("org.forgerock.opendj.grizzly.handshakeTimeout", 10000), TimeUnit.MILLISECONDS);
                 installFilter(startTls ? new StartTLSFilter(sslFilter) : sslFilter);
                 return true;
             }
@@ -635,7 +637,7 @@ public final class LDAPServerFilter extends BaseFilter {
             return newCompletable(new Completable.Emitter() {
                 @Override
                 public void subscribe(final Completable.Subscriber s) throws Exception {
-                    promise.thenOnResult(new ResultHandler<Boolean>() {
+                	promise.thenOnResult(new ResultHandler<Boolean>() {
                         @Override
                         public void handleResult(Boolean result) {
                             s.onComplete();
@@ -643,7 +645,13 @@ public final class LDAPServerFilter extends BaseFilter {
                     }).thenOnException(new ExceptionHandler<Exception>() {
                         @Override
                         public void handleException(Exception exception) {
-                            s.onError(exception);
+                            try {
+                            	 s.onError(exception);
+                            } catch (Throwable t) {
+                                if (!(t instanceof OnErrorNotImplementedException)) {
+                                    throw t;
+                                }
+                            }
                         }
                     }).thenOnRuntimeException(new RuntimeExceptionHandler() {
                         @Override
@@ -653,6 +661,7 @@ public final class LDAPServerFilter extends BaseFilter {
                     });
                 }
             });
+
         }
     }
 }

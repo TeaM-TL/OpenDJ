@@ -5,10 +5,22 @@ echo "Setting up default OpenDJ instance"
 
 # If any optional LDIF files are present load them
 
+# There are multiple types of ldif files.
+# This step makes plain copies.
+# See below for imports via `ldapmodify`.
+if [ -d /opt/opendj/bootstrap/config/schema/ ]; then
+  echo "Copying schema:"
+  mkdir -p /opt/opendj/template/config/schema
+  for file in /opt/opendj/bootstrap/config/schema/*; do
+    target_file="/opt/opendj/template/config/schema/$(basename -- $file)"
+    echo "Copying $file to $target_file"
+    cp "$file" "$target_file"
+  done
+fi
+
 /opt/opendj/setup \
   --cli \
   -h localhost \
-  --baseDN $BASE_DN \
   --ldapPort $PORT \
   --ldapsPort $LDAPS_PORT \
   --enableStartTLS $OPENDJ_SSL_OPTIONS \
@@ -18,23 +30,33 @@ echo "Setting up default OpenDJ instance"
   --acceptLicense \
   --no-prompt \
   --noPropertiesFile \
-  --doNotStart \
-  $ADD_BASE_ENTRY #--sampleData 1
+  $SETUP_ARGS
 
-# There are multiple types of ldif files.
-# This step makes plain copies.
-# See below for imports via `ldapmodify`.
-if [ -d /opt/opendj/bootstrap/config/schema/ ]; then
-  echo "Copying schema:"
-  mkdir -p /opt/opendj/config/schema
-  for file in /opt/opendj/bootstrap/config/schema/*; do
-    target_file="/opt/opendj/config/schema/$(basename -- $file)"
-    echo "Copying $file to $target_file"
-    cp $file $target_file
-  done
+BACKEND_TYPE=${BACKEND_TYPE:-je}
+BACKEND_DB_DIRECTORY=${BACKEND_DB_DIRECTORY:-db}
+echo "creating backend: $BACKEND_TYPE db-directory: ${BACKEND_DB_DIRECTORY}"
+
+/opt/opendj/bin/dsconfig create-backend -h localhost -p $ADMIN_PORT --bindDN "$ROOT_USER_DN" --bindPassword "$ROOT_PASSWORD" \
+  --backend-name=userRoot --type $BACKEND_TYPE --set base-dn:$BASE_DN --set "db-directory:$BACKEND_DB_DIRECTORY" \
+  --set enabled:true --no-prompt --trustAll
+
+if [ "$ADD_BASE_ENTRY" = "--addBaseEntry"  ]; then
+  BASE_TEMPLATE=$(mktemp)
+  if [ ! -z ${SAMPLE_DATA} ]; then
+    echo "generating sample data..."
+    /opt/opendj/bin/makeldif -o $BASE_TEMPLATE -c suffix="$BASE_DN" -c numusers=$SAMPLE_DATA /opt/opendj/template/config/MakeLDIF/example.template
+    /opt/opendj/bin/import-ldif --ldifFile $BASE_TEMPLATE \
+        --backendID=userRoot --bindDN "$ROOT_USER_DN" --bindPassword "$ROOT_PASSWORD"
+  else
+    echo "creating base entry..."
+    BASE_TEMPLATE=$(mktemp)
+    echo "branch: $BASE_DN" > $BASE_TEMPLATE
+    /opt/opendj/bin/import-ldif --templateFile $BASE_TEMPLATE \
+        --backendID=userRoot --bindDN "$ROOT_USER_DN" --bindPassword "$ROOT_PASSWORD"
+  fi
+  rm $BASE_TEMPLATE
 fi
 
-/opt/opendj/bin/start-ds
 
 # There are multiple types of ldif files.
 # The steps below import ldifs via `ldapmodify`.

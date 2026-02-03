@@ -13,6 +13,7 @@
  *
  * Copyright 2008-2010 Sun Microsystems, Inc.
  * Portions Copyright 2011-2016 ForgeRock AS.
+ * Portions Copyright 2024-2025 3A Systems,LLC.
  */
 package org.opends.server.workflowelement.localbackend;
 
@@ -37,6 +38,8 @@ import org.forgerock.opendj.ldap.AVA;
 import org.forgerock.opendj.ldap.ByteString;
 import org.forgerock.opendj.ldap.DN;
 import org.forgerock.opendj.ldap.ResultCode;
+import org.forgerock.opendj.ldap.controls.RelaxRulesControl;
+import org.forgerock.opendj.ldap.controls.TransactionSpecificationRequestControl;
 import org.forgerock.opendj.ldap.schema.AttributeType;
 import org.forgerock.opendj.ldap.schema.ObjectClass;
 import org.forgerock.opendj.ldap.schema.Syntax;
@@ -59,6 +62,7 @@ import org.opends.server.core.DirectoryServer;
 import org.opends.server.core.PasswordPolicy;
 import org.opends.server.core.PersistentSearch;
 import org.opends.server.core.ServerContext;
+import org.opends.server.protocols.ldap.LDAPControl;
 import org.opends.server.schema.AuthPasswordSyntax;
 import org.opends.server.schema.UserPasswordSyntax;
 import org.opends.server.types.Attribute;
@@ -71,10 +75,7 @@ import org.opends.server.types.Entry;
 import org.opends.server.types.LockManager.DNLock;
 import org.opends.server.types.Privilege;
 import org.opends.server.types.SearchFilter;
-import org.opends.server.types.operation.PostOperationAddOperation;
-import org.opends.server.types.operation.PostResponseAddOperation;
-import org.opends.server.types.operation.PostSynchronizationAddOperation;
-import org.opends.server.types.operation.PreOperationAddOperation;
+import org.opends.server.types.operation.*;
 import org.opends.server.util.TimeThread;
 
 /**
@@ -84,7 +85,7 @@ import org.opends.server.util.TimeThread;
 public class LocalBackendAddOperation
        extends AddOperationWrapper
        implements PreOperationAddOperation, PostOperationAddOperation,
-                  PostResponseAddOperation, PostSynchronizationAddOperation
+                  PostResponseAddOperation, PostSynchronizationAddOperation,RollbackOperation
 {
   private static final LocalizedLogger logger = LocalizedLogger.getLoggerForThisClass();
 
@@ -108,7 +109,8 @@ public class LocalBackendAddOperation
   private Map<AttributeType, List<Attribute>> operationalAttributes;
   /** The set of user attributes for the entry to add. */
   private Map<AttributeType, List<Attribute>> userAttributes;
-
+  /** Indicates whether the request included the RelaxRules request control. */
+  private boolean RelaxRulesControlRequested=false;
   /**
    * Creates a new operation that may be used to add a new entry in a
    * local backend of the Directory Server.
@@ -122,6 +124,10 @@ public class LocalBackendAddOperation
     LocalBackendWorkflowElement.attachLocalOperation (add, this);
   }
 
+  @Override
+  public boolean isSynchronizationOperation() {
+    return super.isSynchronizationOperation()||RelaxRulesControlRequested;
+  }
 
 
   /**
@@ -406,7 +412,7 @@ public class LocalBackendAddOperation
       // sensitive information to the client.
       try
       {
-        if (!getAccessControlHandler().isAllowed(this))
+        if (!getAccessControlHandler().isAllowed(this) || (RelaxRulesControlRequested && !clientConnection.hasPrivilege(Privilege.BYPASS_ACL, this)))
         {
           setResultCodeAndMessageNoInfoDisclosure(entryDN,
               ResultCode.INSUFFICIENT_ACCESS_RIGHTS,
@@ -463,6 +469,9 @@ public class LocalBackendAddOperation
         }
 
         backend.addEntry(entry, this);
+        if (trx!=null) {
+          trx.success(this);
+        }
       }
 
       LocalBackendWorkflowElement.addPostReadResponse(this, postReadRequest,
@@ -489,7 +498,10 @@ public class LocalBackendAddOperation
     }
   }
 
-
+  @Override
+  public void rollback() throws CanceledOperationException, DirectoryException {
+    backend.deleteEntry(entryDN,null);
+  }
 
   private void processSynchPostOperationPlugins()
   {
@@ -796,7 +808,7 @@ public class LocalBackendAddOperation
     LocalizableMessageBuilder invalidReason = new LocalizableMessageBuilder();
     if (! entry.conformsToSchema(parentEntry, true, true, true, invalidReason))
     {
-      throw new DirectoryException(ResultCode.OBJECTCLASS_VIOLATION,
+      throw new DirectoryException(entry.getTypeConformsToSchemaError(),
                                    invalidReason.toMessage());
     }
 
@@ -957,6 +969,14 @@ public class LocalBackendAddOperation
         // We don't need to do anything here because it's already handled
         // in LocalBackendAddOperation.handlePasswordPolicy().
       }
+      else if (RelaxRulesControl.OID.equals(oid))
+      {
+        RelaxRulesControlRequested = true;
+      }
+      else if (TransactionSpecificationRequestControl.OID.equals(oid))
+      {
+        trx=getClientConnection().getTransaction(((LDAPControl)c).getValue().toString());
+      }
       else if (c.isCritical() && !backend.supportsControl(oid))
       {
         throw newDirectoryException(entryDN, ResultCode.UNAVAILABLE_CRITICAL_EXTENSION,
@@ -964,9 +984,11 @@ public class LocalBackendAddOperation
       }
     }
   }
+  ClientConnection.Transaction trx=null;
 
   private AccessControlHandler<?> getAccessControlHandler()
   {
     return AccessControlConfigManager.getInstance().getAccessControlHandler();
   }
+
 }

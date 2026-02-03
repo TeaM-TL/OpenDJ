@@ -13,20 +13,7 @@
  *
  * Portions Copyright 2014 The Apache Software Foundation
  * Copyright 2015-2016 ForgeRock AS.
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Portions Copyright 2023-2025 3A Systems, LLC
  */
 package org.opends.server.backends.pluggable;
 
@@ -389,6 +376,7 @@ final class OnDiskMergeImporter
       final int initialThreadCount = maxThreadCount;
       final Long offheapMemorySize = backendCfg.getImportOffheapMemorySize();
       boolean useOffHeap = (offheapMemorySize != null && offheapMemorySize > 0);
+      
       long memoryAvailable =
           useOffHeap ? offheapMemorySize.longValue() : calculateAvailableHeapMemoryForBuffersAfterGC();
       int threadCount = initialThreadCount;
@@ -454,15 +442,15 @@ final class OnDiskMergeImporter
     private BufferPool newHeapBufferPool(final int nbBuffers, final long heapMemoryAvailable)
         throws InitializationException
     {
-      final long minimumRequiredMemory = nbBuffers * MIN_BUFFER_SIZE + DB_CACHE_SIZE + REQUIRED_FREE_MEMORY;
-      if (heapMemoryAvailable < minimumRequiredMemory)
-      {
-        // Not enough memory.
-        throw new InitializationException(ERR_IMPORT_LDIF_LACK_MEM.get(heapMemoryAvailable, minimumRequiredMemory));
-      }
+//      final long minimumRequiredMemory = nbBuffers * MIN_BUFFER_SIZE + DB_CACHE_SIZE + REQUIRED_FREE_MEMORY;
+//      if (heapMemoryAvailable < minimumRequiredMemory)
+//      {
+//        // Not enough memory.
+//        throw new InitializationException(ERR_IMPORT_LDIF_LACK_MEM.get(heapMemoryAvailable, minimumRequiredMemory));
+//      }
       logger.info(NOTE_IMPORT_LDIF_TOT_MEM_BUF, heapMemoryAvailable, nbBuffers);
-      final long buffersMemory = heapMemoryAvailable - DB_CACHE_SIZE - REQUIRED_FREE_MEMORY;
-      final int bufferSize = Math.min(((int) (buffersMemory / nbBuffers)), MAX_BUFFER_SIZE);
+      final long buffersMemory =  (long)(heapMemoryAvailable*0.3);//
+      final int bufferSize = Math.max(((int) (buffersMemory / nbBuffers)), MIN_BUFFER_SIZE);
       logger.info(NOTE_IMPORT_LDIF_DB_MEM_BUF_INFO, DB_CACHE_SIZE, bufferSize);
       return new BufferPool(nbBuffers, bufferSize, false);
     }
@@ -1365,7 +1353,8 @@ final class OnDiskMergeImporter
     @Override
     public boolean update(TreeName treeName, ByteSequence key, UpdateFunction f)
     {
-      throw new UnsupportedOperationException();
+        put(treeName,key,f.computeNewValue(null));
+        return true;
     }
 
     @Override
@@ -1522,7 +1511,7 @@ final class OnDiskMergeImporter
             mmapPosition = region.offset;
             mmap = channel.map(MapMode.READ_ONLY, mmapPosition, Math.min(size.get() - mmapPosition, Integer.MAX_VALUE));
           }
-          final ByteBuffer regionBuffer = mmap.duplicate();
+          final ByteBuffer regionBuffer = ((ByteBuffer)mmap).duplicate();
           final int relativeRegionOffset = (int) (region.offset - mmapPosition);
           regionBuffer.position(relativeRegionOffset).limit(regionBuffer.position() + region.size);
           cursors.add(new FileRegion.Cursor(name, regionBuffer.slice()));
@@ -3048,7 +3037,7 @@ final class OnDiskMergeImporter
 
       void writeByteSequence(int position, ByteSequence data)
       {
-        buffer.position(position);
+        ((ByteBuffer)buffer).position(position);
         data.copyTo(buffer);
       }
 

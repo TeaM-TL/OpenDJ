@@ -13,10 +13,12 @@ rem information: "Portions Copyright [year] [name of copyright owner]".
 rem
 rem Copyright 2008-2010 Sun Microsystems, Inc.
 rem Portions Copyright 2011-2016 ForgeRock AS.
+rem Portions Copyright 2020-2025 3A Systems, LLC.
 
 set SET_JAVA_HOME_AND_ARGS_DONE=false
 set SET_ENVIRONMENT_VARS_DONE=false
 set SET_CLASSPATH_DONE=false
+set SET_TEMP_DIR_DONE=false
 
 if "%INSTALL_ROOT%" == "" goto setInstanceRoot
 
@@ -69,11 +71,8 @@ rem get the absolute paths before building the classpath
 rem it also helps comparing the two paths
 FOR /F "delims=" %%i IN ("%INSTALL_ROOT%")  DO set INSTALL_ROOT=%%~dpnxi
 FOR /F "delims=" %%i IN ("%INSTANCE_ROOT%") DO set INSTANCE_ROOT=%%~dpnxi
-call "%INSTALL_ROOT%\lib\setcp.bat" %INSTALL_ROOT%\lib\bootstrap.jar
+call "%INSTALL_ROOT%\lib\setcp.bat" %INSTALL_ROOT%\lib\*
 set CLASSPATH=%INSTANCE_ROOT%\classes;%CLASSPATH%
-if "%INSTALL_ROOT%" == "%INSTANCE_ROOT%" goto setClassPathWithOpenDJLoggerDone
-FOR %%x in ("%INSTANCE_ROOT%\lib\*.jar") DO call "%INSTANCE_ROOT%\lib\setcp.bat" %%x
-:setClassPathWithOpenDJLoggerDone
 set SET_CLASSPATH_DONE=true
 goto scriptBegin
 
@@ -87,6 +86,7 @@ goto end
 if "%SET_JAVA_HOME_AND_ARGS_DONE%" == "false" goto setJavaHomeAndArgs
 if "%SET_CLASSPATH_DONE%" == "false" goto setClassPath
 if "%SET_ENVIRONMENT_VARS_DONE%" == "false" goto setEnvironmentVars
+if "%SET_TEMP_DIR_DONE%" == "false" goto setTempDir
 goto testJava
 
 :setFullServerEnvironmentAndTestJava
@@ -170,9 +170,17 @@ if %SET_ENVIRONMENT_VARS_DONE% == "true" goto end
 set PATH=%SystemRoot%;%PATH%
 set SCRIPT_NAME_ARG=-Dorg.opends.server.scriptName=%SCRIPT_NAME%
 set SET_ENVIRONMENT_VARS_DONE=true
-"%OPENDJ_JAVA_BIN%" --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --version > NUL 2>&1
+"%OPENDJ_JAVA_BIN%" --add-opens java.base/jdk.internal.loader=ALL-UNNAMED --version > NUL 2>&1
 set RESULT_CODE=%errorlevel%
-if %RESULT_CODE% == 0 set OPENDJ_JAVA_ARGS=%OPENDJ_JAVA_ARGS% --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED
+if %RESULT_CODE% == 0 set OPENDJ_JAVA_ARGS=%OPENDJ_JAVA_ARGS% --add-opens java.base/jdk.internal.loader=ALL-UNNAMED
+goto scriptBegin
+
+:setTempDir
+if %SET_TEMP_DIR_DONE% == "true" goto end
+set OPENDJ_TMP_DIR=%INSTANCE_ROOT%\tmp
+if not exist "%OPENDJ_TMP_DIR%" mkdir "%OPENDJ_TMP_DIR%"
+set OPENDJ_JAVA_ARGS=%OPENDJ_JAVA_ARGS% -Djava.io.tmpdir=%OPENDJ_TMP_DIR%
+set SET_TEMP_DIR_DONE=true
 goto scriptBegin
 
 :testJava

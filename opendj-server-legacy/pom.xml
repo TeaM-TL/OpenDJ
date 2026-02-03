@@ -13,6 +13,7 @@
   information: "Portions Copyright [year] [name of copyright owner]".
 
   Copyright 2011-2016 ForgeRock AS.
+  Portions Copyright 2017-2025 3A Systems, LLC.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
@@ -20,7 +21,7 @@
   <parent>
     <groupId>org.openidentityplatform.opendj</groupId>
     <artifactId>opendj-parent</artifactId>
-    <version>4.5.2-SNAPSHOT</version>
+    <version>5.0.3-SNAPSHOT</version>
   </parent>
   <artifactId>opendj-server-legacy</artifactId>
   <packaging>jar</packaging>
@@ -64,17 +65,12 @@
     <product.archive.name>${product.name.lowercase}-${project.version}</product.archive.name>
 
     <juel.version>2.2.7</juel.version>
-    
+
     <doclint>none</doclint>
     <opendmk.lib.dir>${basedir}/opendmk</opendmk.lib.dir>
   </properties>
 
   <dependencies>
-    <!-- ForgeRock libraries -->
-    <dependency>
-      <groupId>org.openidentityplatform.opendj</groupId>
-      <artifactId>opendj-cli</artifactId>
-    </dependency>
 
     <dependency>
       <groupId>org.openidentityplatform.opendj</groupId>
@@ -89,6 +85,16 @@
     <dependency>
       <groupId>org.openidentityplatform.opendj</groupId>
       <artifactId>opendj-config</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.openidentityplatform.opendj</groupId>
+      <artifactId>opendj-cli</artifactId>
+    </dependency>
+
+     <dependency>
+      <groupId>org.openidentityplatform.opendj</groupId>
+      <artifactId>opendj-legacy</artifactId>
     </dependency>
 
     <dependency>
@@ -198,11 +204,11 @@
       <artifactId>jul-to-slf4j</artifactId>
     </dependency>
 
-       
+
     <!-- mail -->
     <dependency>
       <groupId>com.sun.mail</groupId>
-      <artifactId>javax.mail</artifactId>
+      <artifactId>jakarta.mail</artifactId>
     </dependency>
 
     <dependency>
@@ -223,10 +229,10 @@
       <groupId>org.openidentityplatform.commons.persistit</groupId>
       <artifactId>core</artifactId>
     </dependency>
-	
+
     <dependency>
-      <groupId>com.github.stephenc.jcip</groupId>
-      <artifactId>jcip-annotations</artifactId>
+      <groupId>com.io7m.jcip</groupId>
+      <artifactId>com.io7m.jcip.annotations</artifactId>
     </dependency>
 
     <dependency>
@@ -239,6 +245,85 @@
       <groupId>de.odysseus.juel</groupId>
       <artifactId>juel-api</artifactId>
       <version>${juel.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.datastax.oss</groupId>
+      <artifactId>native-protocol</artifactId>
+      <version>1.5.2</version>
+    </dependency>
+    <dependency>
+	    <groupId>org.apache.cassandra</groupId>
+	    <artifactId>java-driver-core</artifactId>
+	    <version>4.19.0</version>
+	    <exclusions>
+	    	<exclusion>
+	    		<groupId>org.reactivestreams</groupId>
+	    		<artifactId>reactive-streams</artifactId>
+	    	</exclusion>
+	    </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>42.7.8</version>
+    </dependency>
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- TestContainers-->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>cassandra</artifactId>
+      <version>1.20.6</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>1.20.6</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>oracle-free</artifactId>
+      <version>1.20.6</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>mysql</artifactId>
+      <version>1.20.6</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>mssqlserver</artifactId>
+      <version>1.20.6</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- test JDBC drivers -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <version>9.2.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.oracle.database.jdbc</groupId>
+      <artifactId>ojdbc8</artifactId>
+      <version>23.7.0.25.01</version>
+    </dependency>
+    <dependency>
+      <groupId>com.microsoft.sqlserver</groupId>
+      <artifactId>mssql-jdbc</artifactId>
+      <version>12.10.2.jre11</version>
+    </dependency>
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcpkix-fips</artifactId>
     </dependency>
   </dependencies>
 
@@ -520,12 +605,9 @@
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
         <executions>
-          <!-- Run inherited 'parse-version' execution to generate properties (major.version, minor.version, ...) -->
-
-          <!-- Take into account several sources directories for the build -->
           <execution>
             <id>main-java-sources</id>
-            <phase>generate-sources</phase>
+            <phase>process-sources</phase>
             <goals>
               <goal>add-source</goal>
             </goals>
@@ -535,7 +617,7 @@
                 <source>src/messages/src</source>
                 <source>src/build-tools</source>
                 <source>${project.build.directory}/java-stubs</source>
-                <source>../opendj-legacy/src/main/java</source>
+<!--                <source>../opendj-legacy/src/main/java</source>-->
               </sources>
             </configuration>
           </execution>
@@ -634,7 +716,7 @@
                 <Embed-Dependency>
                   org.openidentityplatform.commons.persistit:core,
                   <!--je,-->
-                  jcip-annotations
+                  com.io7m.jcip.annotations
                 </Embed-Dependency>
               </instructions>
             </configuration>
@@ -750,6 +832,7 @@
               <includes>
                 <include>**/org/slf4j/**</include>
                 <include>**/org/opends/server/loggers/slf4j/**</include>
+                <include>**/META-INF/services/org.slf4j.spi.SLF4JServiceProvider</include>
               </includes>
               <archive>
                 <index>false</index>
@@ -1055,24 +1138,6 @@
         </executions>
       </plugin>
 
-      <!-- Build javadoc -->
-      <plugin>
-        <groupId>org.openidentityplatform.maven.plugins</groupId>
-        <artifactId>javadoc-updater-maven-plugin</artifactId>
-        <version>1.0.0</version>
-        <executions>
-          <execution>
-            <phase>site</phase>
-            <goals>
-              <goal>fixjavadoc</goal>
-            </goals>
-            <configuration>
-              <directory>${project.build.directory}/site/javadoc</directory>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
       <!-- Release project -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -1156,9 +1221,9 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>
             <configuration>
-            	<classpathDependencyExcludes>
-	            	<classpathDependencyExcludes>org.slf4j:slf4j-jdk14</classpathDependencyExcludes>
-	          	</classpathDependencyExcludes>
+<!--            	<classpathDependencyExcludes>-->
+<!--	            	<classpathDependencyExcludes>org.slf4j:slf4j-jdk14</classpathDependencyExcludes>-->
+<!--	          	</classpathDependencyExcludes>-->
             </configuration>
             <executions>
               <execution>
@@ -1167,8 +1232,13 @@
                   <goal>verify</goal>
                 </goals>
                 <configuration>
-                  <testSourceDirectory>src/test/java</testSourceDirectory>
-                  <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+				  <additionalClasspathElements>
+		            <additionalClasspathElement>${project.build.directory}/jars/opendj-slf4j-adapter.jar</additionalClasspathElement>
+		          </additionalClasspathElements>
+				  <testSourceDirectory>src/test/java</testSourceDirectory>
+<!--				  <enableProcessChecker>all</enableProcessChecker>-->
+				  <forkedProcessTimeoutInSeconds>900</forkedProcessTimeoutInSeconds>
+                  <forkedProcessExitTimeoutInSeconds>120</forkedProcessExitTimeoutInSeconds>
                   <excludes>
                     <exclude>org/opends/server/snmp/**</exclude>
                     <exclude>org/opends/quicksetup/**</exclude>
@@ -1198,9 +1268,8 @@
                       <name>configfailurepolicy</name>
                       <value>skip</value>
                     </property>
-                    
-                  </properties>
-                  <systemPropertyVariables>
+                 </properties>
+                 <systemPropertyVariables>
                     <org.opends.server.BuildRoot>${basedir}</org.opends.server.BuildRoot>
                     <org.opends.server.BuildDir>${project.build.directory}</org.opends.server.BuildDir>
                     <org.opends.test.replicationDbImpl>LOG</org.opends.test.replicationDbImpl>
@@ -1209,10 +1278,15 @@
                     <org.opends.test.suppressOutput>true</org.opends.test.suppressOutput>
                     <org.opends.test.pauseOnFailure>false</org.opends.test.pauseOnFailure>
                     <org.opends.test.copyClassesToTestPackage>false</org.opends.test.copyClassesToTestPackage>
+                    <org.opends.test.timeout>600000</org.opends.test.timeout><!--15 mins-->
+                    <org.opends.test.trace.pattern>(org\.opends\.server\.replication\.service\..*)|(org\.opends\.server\.replication\.GenerationIdTest)|(org\.opends\.server\.types.\HostPortTest)</org.opends.test.trace.pattern>
                   </systemPropertyVariables>
-                  <argLine>-server -Xmx2048M -XX:MaxPermSize=256m</argLine>
-	        	  <parallel>methods</parallel>
-	          	  <threadCount>1</threadCount>
+                  <argLine>@{argLine}</argLine>
+	          	  <reuseForks>false</reuseForks>
+	          	  <forkCount>1</forkCount>
+	          	  <parallel>none</parallel>
+	          	  <runOrder>alphabetical</runOrder>
+	          	  <rerunFailingTestsCount>3</rerunFailingTestsCount>
                 </configuration>
               </execution>
             </executions>
@@ -1269,16 +1343,19 @@
               <!-- Add snmp source directory and snmp generated directory as sources -->
               <execution>
                 <id>snmp-java-sources</id>
-                <phase>generate-sources</phase>
+               <phase>process-sources</phase>
                 <goals>
                   <goal>add-source</goal>
                 </goals>
                 <configuration>
                   <sources>
-                    <source>src/snmp</source>
+                    <source>src/snmp/generated</source>
+                    <source>src/snmp/src</source>
+                     <source>src/snmp/resource</source>
                   </sources>
                 </configuration>
               </execution>
+
             </executions>
           </plugin>
 

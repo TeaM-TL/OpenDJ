@@ -13,12 +13,13 @@
   information: "Portions Copyright [year] [name of copyright owner]".
 
   Copyright 2011-2016 ForgeRock AS.
+  Portions  Copyright 2017-2025 3A Systems, LLC.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 	<groupId>org.openidentityplatform.opendj</groupId>
     <artifactId>opendj-parent</artifactId>
-	<version>4.5.2-SNAPSHOT</version>
+	  <version>5.0.3-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>OpenDJ Directory Services Project</name>
@@ -34,11 +35,14 @@
         <product.locales>ca_ES,es,de,fr,ja,ko,pl,zh_CN,zh_TW</product.locales>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <localized.jars.classifier>i18n</localized.jars.classifier>
-        <freemarker.version>2.3.31</freemarker.version>
-        <grizzly-framework.version>2.4.4</grizzly-framework.version>
-        <metrics-core.version>3.1.2</metrics-core.version>
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <maven.compiler.source>1.8</maven.compiler.source>
+        <commons.version>3.0.2</commons.version>
+        <freemarker.version>2.3.34</freemarker.version>
+        <metrics-core.version>4.2.30</metrics-core.version>
+        <bc.fips.version>2.1.2</bc.fips.version>
+        <bctls.fips.version>2.1.20</bctls.fips.version>
+        <bcpkix.fips.version>2.1.9</bcpkix.fips.version>
+        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
         <!-- OSGi bundles properties -->
         <opendj.osgi.import.additional />
         <!--
@@ -54,7 +58,16 @@
         <!--  ForgeRock build tools and Checkstyle versions (to avoid many checkstyle errors with ForgeRock Parent 2.0.10) -->
         <checkstylePluginVersion>2.9.1</checkstylePluginVersion>
         <checkstyleVersion>5.5</checkstyleVersion>
-    </properties>
+        <ant.contrib.version>1.0b3</ant.contrib.version>
+        <argLine>-Xmx512m</argLine>
+        <maven.cargo.containerId>tomcat10x</maven.cargo.containerId>
+
+        <docHomepageUrl>https://doc.openidentityplatform.org/opendj/</docHomepageUrl>
+        <docWikiUrl>https://github.com/OpenIdentityPlatform/OpenDJ/wiki</docWikiUrl>
+        <docGuideRefUrl>https://doc.openidentityplatform.org/opendj/man-pages/</docGuideRefUrl>
+        <docGuideAdminUrl>https://doc.openidentityplatform.org/opendj/admin-guide/</docGuideAdminUrl>
+
+      </properties>
 
     <inceptionYear>2011</inceptionYear>
     <url>https://github.com/OpenIdentityPlatform/OpenDJ</url>
@@ -109,49 +122,42 @@
       	<tag>HEAD</tag>
   	</scm>
 	<repositories>
-		<repository>
-			<id>ossrh-snapshots</id>
-			<name>Sonatype OSS Repository</name>
-			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-			<snapshots><enabled>true</enabled></snapshots>
-		</repository>
-	</repositories>
+	        <repository>
+	            <name>Central Portal Snapshots</name>
+	            <id>central-portal-snapshots</id>
+	            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+	            <releases>
+	                <enabled>false</enabled>
+	            </releases>
+	            <snapshots>
+	                <enabled>true</enabled>
+	            </snapshots>
+	        </repository>
+	    </repositories>
 	<pluginRepositories>
 		<pluginRepository>
-			<id>ossrh-snapshots</id>
-			<name>Sonatype OSS Repository</name>
-			<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+			<name>Central Portal Snapshots</name>
+	            <id>central-portal-snapshots</id>
+	            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
 			<snapshots>
 				<enabled>true</enabled>
 			</snapshots>
 		</pluginRepository>
 	</pluginRepositories>
-	<distributionManagement>
-		<repository>
-			<id>ossrh</id>
-			<name>Sonatype OSS Repository</name>
-			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
-		</repository>
-		<snapshotRepository>
-			<id>ossrh</id>
-			<name>Sonatype OSS Repository</name>
-			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
-		</snapshotRepository>
-	</distributionManagement>
-
     <dependencyManagement>
         <dependencies>
         	<dependency>
         		<groupId>org.openidentityplatform.commons</groupId>
         		<artifactId>parent</artifactId>
-        		<version>2.0.17-SNAPSHOT</version>
+        		<version>${commons.version}</version>
         		<type>pom</type>
         		<scope>import</scope>
         	</dependency>
+
             <dependency>
-                <groupId>com.github.stephenc.jcip</groupId>
-                <artifactId>jcip-annotations</artifactId>
-                <version>1.0-1</version>
+                <groupId>com.io7m.jcip</groupId>
+                <artifactId>com.io7m.jcip.annotations</artifactId>
+                <version>2.0.0</version>
             </dependency>
 
             <!-- OpenDJ SDK -->
@@ -216,6 +222,22 @@
                 <artifactId>opendj-server-legacy</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bc-fips</artifactId>
+                <version>${bc.fips.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bctls-fips</artifactId>
+                <version>${bctls.fips.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-fips</artifactId>
+                <version>${bcpkix.fips.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -246,11 +268,6 @@
             <scope>test</scope>
         </dependency>
 
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-jdk14</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <modules>
@@ -274,28 +291,13 @@
         <module>opendj-embedded-server-examples</module>
         <module>opendj-openidm-account-change-notification-handler</module>
         <module>opendj-packages</module>
+        <module>opendj-embedded</module>
     </modules>
 
     <build>
     	<finalName>${project.groupId}.${project.artifactId}</finalName>
         <plugins>
              <plugin>
-                <groupId>org.openidentityplatform.maven.plugins</groupId>
-                <artifactId>javadoc-updater-maven-plugin</artifactId>
-                <version>1.0.0</version>
-                <executions>
-                    <execution>
-                        <phase>site</phase>
-                        <goals>
-                            <goal>fixjavadoc</goal>
-                        </goals>
-                        <configuration>
-                            <directory>${project.reporting.outputDirectory}</directory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
                 <executions>
@@ -321,29 +323,20 @@
 			  </executions>
 			  <configuration>
 			  	<doclint>none</doclint>
+                <notimestamp>true</notimestamp>
 			  </configuration>
 			</plugin>
 			<plugin>
-		      <groupId>org.sonatype.plugins</groupId>
-		      <artifactId>nexus-staging-maven-plugin</artifactId>
-		      <version>1.6.12</version>
-		      <extensions>true</extensions>
-		      <configuration>
-		        <serverId>ossrh</serverId>
-		        <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-		        <autoReleaseAfterClose>true</autoReleaseAfterClose>
-		        <stagingProgressTimeoutMinutes>15</stagingProgressTimeoutMinutes>
-		        <keepStagingRepositoryOnFailure>true</keepStagingRepositoryOnFailure>
-		        <keepStagingRepositoryOnCloseRuleFailure>true</keepStagingRepositoryOnCloseRuleFailure>
-		      </configuration>
-		      <dependencies>
-		      	<dependency>
-			        <groupId>com.google.guava</groupId>
-			        <artifactId>guava</artifactId>
-			        <version>15.0</version>
-			     </dependency>
-		      </dependencies>
-		    </plugin>
+				<groupId>org.sonatype.central</groupId>
+				<artifactId>central-publishing-maven-plugin</artifactId>
+				<version>0.8.0</version>
+				<extensions>true</extensions>
+				<configuration>
+				    <publishingServerId>ossrh</publishingServerId>
+				    <autoPublish>true</autoPublish>
+				    <waitMaxTime>5400</waitMaxTime>
+				</configuration>
+			    </plugin>
         </plugins>
 
         <pluginManagement>
@@ -357,11 +350,15 @@
                     <inherited>true</inherited>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.10.1</version>
+                    <version>3.14.0</version>
                     <configuration>
                         <fork>true</fork>
                         <compilerArgs>
                         	<arg>-XDignore.symbol.file</arg>
+                            <arg>--add-exports</arg>
+                            <arg>java.base/sun.security.x509=ALL-UNNAMED</arg>
+                            <arg>--add-exports</arg>
+                            <arg>java.base/sun.security.tools.keytool=ALL-UNNAMED</arg>
                         </compilerArgs>
                     </configuration>
                 </plugin>
@@ -369,81 +366,71 @@
 				<plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
-                    <version>3.2.0</version>
+                    <version>3.7.1</version>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
 			        <artifactId>maven-release-plugin</artifactId>
-			        <version>3.0.0-M1</version>
+			        <version>3.1.1</version>
+			        <configuration>
+ 			        	<signTag>true</signTag>
+ 			        	<tagNameFormat>@{project.version}</tagNameFormat>
+ 			        	<allowTimestampedSnapshots>false</allowTimestampedSnapshots>
+ 			        </configuration>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.2.0</version>
+                    <version>3.4.2</version>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-war-plugin</artifactId>
-                    <version>3.2.3</version>
+                    <version>3.4.0</version>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
-                    <version>3.2.1</version>
+                    <version>3.6.0</version>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>3.0.0-M4</version>
+                    <version>3.5.3</version>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.3.1</version>
                 </plugin>
-                
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-clean-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.4.1</version>
                 </plugin>
-                
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.8.1</version>
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.1.1</version>
-                    <configuration>
-                        <links>
-                            <link>http://commons.forgerock.org/i18n-framework/i18n-core/apidocs</link>
-                        </links>
-                    </configuration>
+                    <version>3.11.2</version>
                 </plugin>
-
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-source-plugin</artifactId>
-                    <version>3.2.0</version>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>jar</goal>
-                            </goals>
-                        </execution>
-                    </executions>
-                </plugin>
-
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M4</version> <!-- M6 DecodeException but got java.nio.BufferOverflowException -->
+                    <version>3.5.3</version> <!-- M6 DecodeException but got java.nio.BufferOverflowException -->
                     <configuration>
-                        <properties>
+						<properties>
                             <property>
                                 <name>usedefaultlisteners</name>
                                 <value>false</value>
@@ -465,7 +452,7 @@
                 <plugin>
                     <groupId>org.apache.felix</groupId>
                     <artifactId>maven-bundle-plugin</artifactId>
-                    <version>2.3.7</version>
+                    <version>5.1.9</version>
                     <extensions>true</extensions>
                     <configuration>
                         <instructions>
@@ -489,6 +476,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
+                    <version>3.21.0</version>
                     <configuration>
                         <locales>en</locales>
                     </configuration>
@@ -515,7 +503,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-plugin-plugin</artifactId>
-                    <version>3.6.0</version>
+                    <version>3.15.1</version>
                     <configuration>
                         <skipErrorNoDescriptorsFound>true</skipErrorNoDescriptorsFound>
                     </configuration>
@@ -556,11 +544,12 @@
                 <plugin>
                     <groupId>org.openidentityplatform.commons</groupId>
                     <artifactId>doc-maven-plugin</artifactId>
+                    <version>${commons.version}</version>
                     <configuration>
-                        <projectName>OpenDJ</projectName>
+                        <projectName>${product.name}</projectName>
                         <projectVersion>${project.version}</projectVersion>
                         <releaseVersion>${project.version}</releaseVersion>
-                        <googleAnalyticsId>UA-23412190-8</googleAnalyticsId>
+                        <googleAnalyticsId />
                     </configuration>
                 </plugin>
 
@@ -611,7 +600,7 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>build-helper-maven-plugin</artifactId>
-                    <version>1.8</version>
+                    <version>3.6.0</version>
                     <executions>
                         <!-- Parse version to generate properties (major.version, minor.version, ...) -->
                         <execution>
@@ -627,7 +616,7 @@
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>buildnumber-maven-plugin</artifactId>
-                    <version>1.4</version>
+                    <version>3.2.1</version>
                     <executions>
                         <execution>
                             <id>generate-buildnumber</id>
@@ -687,6 +676,12 @@
                         </lifecycleMappingMetadata>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.codehaus.cargo</groupId>
+                    <artifactId>cargo-maven3-plugin</artifactId>
+                    <version>1.10.20</version>
+                    <extensions>true</extensions>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
@@ -705,13 +700,14 @@
                 <module>opendj-packages</module>
             </modules>
         </profile>
-		<profile>		
-	      <id>jdk16.options</id>
+		<profile>
+	      <id>jdk17.options</id>
 	      <activation>
-	        <jdk>[16,)</jdk>
+	        <jdk>[17,)</jdk>
 	      </activation>
 	      <properties>
-	        <argLine>--add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.net=ALL-UNNAMED  --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.util.regex=ALL-UNNAMED --add-opens java.base/java.security=ALL-UNNAMED --add-opens java.naming/javax.naming.spi=ALL-UNNAMED</argLine>
+              <argLine>-Xmx512m --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.net=ALL-UNNAMED  --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.util.regex=ALL-UNNAMED --add-opens java.base/java.security=ALL-UNNAMED --add-opens java.naming/javax.naming.spi=ALL-UNNAMED</argLine>
+              <maven.cargo.containerId>tomcat11x</maven.cargo.containerId>
 	      </properties>
 	    </profile>
 		<profile>
@@ -726,7 +722,7 @@
 	                <plugin>
 				      <groupId>org.apache.maven.plugins</groupId>
 				      <artifactId>maven-gpg-plugin</artifactId>
-				      <version>1.6</version>
+				      <version>3.2.7</version>
 				      <configuration>
                       	<passphrase>${gpg.passphrase}</passphrase>
                         <useAgent>true</useAgent>
@@ -761,7 +757,7 @@
                     <plugin>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <additionalparam>-Xdoclint:none</additionalparam>
+                            <!--additionalparam>-Xdoclint:none</additionalparam-->
                         </configuration>
                     </plugin>
                 </plugins>
@@ -774,7 +770,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-project-info-reports-plugin</artifactId>
-                <version>2.4</version>
+                <version>3.9.0</version>
                 <reportSets>
                     <reportSet>
                         <reports>

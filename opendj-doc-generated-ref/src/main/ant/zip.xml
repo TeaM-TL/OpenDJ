@@ -1,0 +1,10 @@
+<project name="zip">
+    <target name="docs">
+        <taskdef resource="net/sf/antcontrib/antcontrib.properties"/>
+        <foreach param="format" list="${compress_formats}" target="dozip" inheritall="true"/>
+    </target>
+    <target name="dozip" >
+        <echo message="compressing ${format} from ${project.build.directory}/asciidoc/${format} to ${project.build.directory}/${project.name}-${format}.zip"/>
+        <zip basedir="${project.build.directory}/asciidoc/${format}" destfile="${project.build.directory}/${project.name}-${format}.zip"/>
+    </target>
+</project>

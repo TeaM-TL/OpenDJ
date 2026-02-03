@@ -13,6 +13,7 @@
  *
  * Copyright 2006-2010 Sun Microsystems, Inc.
  * Portions Copyright 2011-2016 ForgeRock AS.
+ * Portions Copyright 2023-2025 3A Systems, LLC.
  */
 package org.opends.server.types;
 
@@ -29,6 +30,7 @@ import org.forgerock.i18n.LocalizableMessageBuilder;
 import org.forgerock.i18n.slf4j.LocalizedLogger;
 import org.forgerock.opendj.ldap.DN;
 import org.forgerock.opendj.ldap.ResultCode;
+import org.forgerock.opendj.ldap.controls.TransactionSpecificationRequestControl;
 import org.forgerock.util.Reject;
 import org.opends.server.api.ClientConnection;
 import org.opends.server.api.plugin.PluginResult.OperationResult;
@@ -485,12 +487,14 @@ public abstract class AbstractOperation
     return (T) attachments.put(name, value);
   }
 
+  volatile Boolean completed=false;
   @Override
   public final void operationCompleted()
   {
     // Notify the client connection that this operation is complete
     // and that it no longer needs to be retained.
     clientConnection.removeOperationInProgress(messageID);
+    completed=true;
   }
 
   @Override
@@ -499,7 +503,7 @@ public abstract class AbstractOperation
     abort(cancelRequest);
 
     long stopWaitingTime = System.currentTimeMillis() + 5000;
-    while (cancelResult == null && System.currentTimeMillis() < stopWaitingTime)
+    while ((cancelResult == null || !completed)&& System.currentTimeMillis() < stopWaitingTime)
     {
       try
       {
@@ -719,4 +723,16 @@ public abstract class AbstractOperation
     }
     return true;
   }
+
+  public String getTransactionId() {
+      for (Control control : getRequestControls()) {
+          if (control.getOID().equals(TransactionSpecificationRequestControl.OID)) {
+            if ((control instanceof LDAPControl) && ((LDAPControl)control).getValue()!=null){
+              return ((LDAPControl) control).getValue().toString();
+            }
+          }
+      }
+      return null;
+  }
+
 }

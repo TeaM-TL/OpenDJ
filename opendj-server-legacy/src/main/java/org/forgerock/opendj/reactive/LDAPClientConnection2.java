@@ -25,6 +25,7 @@ import static org.opends.server.loggers.AccessLogger.logDisconnect;
 import static org.opends.server.util.ServerConstants.OID_START_TLS_REQUEST;
 import static org.opends.server.util.StaticUtils.*;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.Selector;
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import javax.security.sasl.SaslServer;
@@ -115,10 +117,10 @@ import com.forgerock.reactive.Consumer;
 import com.forgerock.reactive.ReactiveHandler;
 import com.forgerock.reactive.Stream;
 
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Flowable;
-import io.reactivex.FlowableEmitter;
-import io.reactivex.FlowableOnSubscribe;
+import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.core.FlowableEmitter;
+import io.reactivex.rxjava3.core.FlowableOnSubscribe;
 
 /**
  * This class defines an LDAP client connection, which is a type of client connection that will be accepted by an
@@ -235,8 +237,9 @@ public final class LDAPClientConnection2 extends ClientConnection implements TLS
                 if (error instanceof LocalizableException) {
                     disconnect(
                             DisconnectReason.PROTOCOL_ERROR, true, ((LocalizableException) error).getMessageObject());
+
                 } else {
-                    disconnect(DisconnectReason.PROTOCOL_ERROR, true, null);
+                    disconnect(DisconnectReason.PROTOCOL_ERROR, (!(error instanceof IOException)), null);
                 }
             }
 
@@ -651,7 +654,7 @@ public final class LDAPClientConnection2 extends ClientConnection implements TLS
         // See if we should send a notification to the client. If so, then
         // construct and send a notice of disconnection unsolicited
         // response. Note that we cannot send this notification to an LDAPv2 client.
-        if (sendNotification && ldapVersion != 2) {
+        if (sendNotification && ldapVersion != 2 && !clientContext.isClosed()) {
             try {
                 LocalizableMessage errMsg = message != null ? message
                         : INFO_LDAP_CLIENT_GENERIC_NOTICE_OF_DISCONNECTION.get();

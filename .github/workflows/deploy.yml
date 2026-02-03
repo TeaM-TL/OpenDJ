@@ -2,12 +2,12 @@ name: Package/Deploy
 
 on:
   workflow_run:
-    branches: [ master ]
-    workflows: ["Build"]
+    branches: [ 'sustaining/4.10.x','master' ]
+    workflows: ["Build","Release"]
     types: [completed]
 jobs:
   package-deploy-maven:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event=='push'}}
     runs-on: 'ubuntu-latest'
     steps:
       - name: Print github context
@@ -18,41 +18,30 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run:   |
-          set -x -u -o pipefail
-          source /etc/os-release
-          # Get rid of packages installed from ppa:ondrej/php so that we will be able to install wine32:i386 without conflicts
-          # (see issue https://github.com/actions/virtual-environments/issues/4589)
-          # In detail we:
-          #   1. Remove all packages that ppa:ondrej/php has but plain Ubuntu doesn't, i.e. libzip4 and everything PHP
-          #   2. Revert (remaining) packages that ppa:ondrej/php and plain Ubuntu share, back to the plain Ubuntu version
-          #   3. Assert that no packages from ppa:ondrej/php are left installed
-          dpkg -l | grep '^ii' | fgrep deb.sury.org | awk '{print $2}' | grep '^php' \
-            | xargs -r -t sudo apt-get remove --yes libzip4
-          sudo apt update && sudo apt upgrade
-          dpkg -l | grep '^ii' | fgrep deb.sury.org | grep -v libpcre2-posix3 | awk '{print $2}' | sed "s,\$,/${UBUNTU_CODENAME}," \
-            | xargs -r -t sudo apt-get install --yes --no-install-recommends --allow-downgrades -V
-          ! dpkg -l | grep '^ii' | fgrep deb.sury.org
-          # Install 32bit Wine
-          sudo dpkg --add-architecture i386  # for wine32
-          sudo apt-get update  # again, due to new architecture
-          sudo apt-get install --yes --no-install-recommends -V \
-              wine-stable \
-              wine32:i386
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo dpkg --add-architecture i386
+          sudo mkdir -pm755 /etc/apt/keyrings && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -c -s)/winehq-$(lsb_release -c -s).sources
+          sudo apt-get update
+          sudo apt install --install-recommends winehq-stable || sudo apt install --install-recommends winehq-staging
           wine --version
-      - uses: actions/checkout@v3
+          version="9.4.0"; sudo wget "https://dl.winehq.org/wine/wine-mono/$version/wine-mono-$version-x86.msi" -O /tmp/wine-mono.msi
+          wine msiexec /i /tmp/wine-mono.msi
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
+          ref: ${{ github.event.workflow_run.head_branch }}
       - name: Set up Java for publishing to Maven Central Repository OSS
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
-          java-version: '8'
+          java-version: ${{ github.event.workflow_run.head_branch == 'sustaining/4.10.x' && '8' || '11'}}
           distribution: 'temurin'
           server-id: ossrh
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
       - name: Cache Maven packages
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
          path: ~/.m2/repository
          key: ${{ runner.os }}-m2-repository-${{ hashFiles('**/pom.xml') }}
@@ -78,53 +67,56 @@ jobs:
           MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 -Dmaven.wagon.http.retryHandler.requestSentEnabled=true -Dmaven.wagon.http.retryHandler.count=10
         if: ${{ github.event.workflow_run.event=='push' && env.MAVEN_USERNAME!='' && env.MAVEN_PASSWORD!=''}}
         run: mvn --batch-mode --errors --update-snapshots -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} deploy --file pom.xml
+      - name: Build Javadoc
+        continue-on-error: true
+        run: mvn javadoc:aggregate
       - name: Upload artifacts OpenDJ Server
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ Server
          path: opendj-server-legacy/target/package/*.zip
       - name: Upload artifacts OpenDJ SDK Toolkit
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ SDK Toolkit
          path: opendj-ldap-toolkit/target/*.zip
       - name: Upload artifacts OpenDJ Debian Package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ Debian Package
          path: opendj-packages/opendj-deb/opendj-deb-standard/target/*.deb
       - name: Upload artifacts OpenDJ RPM Package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ RPM Package
          path: opendj-packages/opendj-rpm/opendj-rpm-standard/target/rpm/opendj/RPMS/noarch/*.rpm
       - name: Upload artifacts OpenDJ MSI Package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ MSI Package
          path: opendj-packages/opendj-msi/opendj-msi-standard/target/*.msi
       - name: Upload artifacts OpenDJ Docker Packages
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ Docker Packages
          path: opendj-packages/opendj-docker/target/Dockerfile.zip
       - name: Upload artifacts OpenDJ Openshift template
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ Openshift template
          path: opendj-packages/opendj-openshift-template/*.yaml
       - name: Upload artifacts OpenDJ Doc Generated Reference
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ Doc Generated References
          path: opendj-doc-generated-ref/target/*.zip
       - name: Upload artifacts OpenDJ DSML Gateway
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ DSML Gateway
          path: opendj-dsml-servlet/target/*.war
       - name: Upload artifacts OpenDJ Commons REST LDAP Gateway
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
          name: OpenDJ Commons REST LDAP Gateway
          path: opendj-rest2ldap-servlet/target/*.war
@@ -133,21 +125,47 @@ jobs:
           git config --global user.name "Open Identity Platform Community"
           git config --global user.email "open-identity-platform-opendj@googlegroups.com"
           cd ..
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         continue-on-error: true
         with:
           repository: ${{ github.repository }}.wiki
           path: ${{ github.event.repository.name }}.wiki
-      - name: Publish docs in wiki
+      - name: Publish docs to wiki
         continue-on-error: true
         shell: bash
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ github.token }}
         run:   |
-           cd ${{ github.event.repository.name }}.wiki
-           rm -rf docbkx
-           mv ../opendj-doc-generated-ref/target/docbkx ../${{ github.event.repository.name }}.wiki
-           git add -A
-           git commit -a -m "upload docs after deploy ${{ github.sha }}"
-           git push --quiet --force
+          cd ${{ github.event.repository.name }}.wiki
+          rm -rf asciidoc
+          mkdir asciidoc
+          cp -R ../opendj-doc-generated-ref/target/asciidoc/pdf ../${{ github.event.repository.name }}.wiki/asciidoc        
+          git add -A
+          git commit -a -m "upload docs after deploy ${{ github.sha }}"
+          git push --quiet --force
+
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: OpenIdentityPlatform/doc.openidentityplatform.org
+          path: doc.openidentityplatform.org
+          token: ${{ secrets.OIP_PAT_GH_TOKEN }}
+
+      - name: Publish docs to site
+        continue-on-error: true
+        shell: bash
+        run: |
+          export REPO_NAME_LC=$(echo '${{github.event.repository.name}}' | tr '[:upper:]' '[:lower:]')
+          export SITE_DOC_FOLDER=${REPO_NAME_LC}-doc-generated-ref
+          cd doc.openidentityplatform.org
+          rm -rf ${REPO_NAME_LC}/modules
+          cp -R ../${SITE_DOC_FOLDER}/target/asciidoc/antora/modules ../doc.openidentityplatform.org/${REPO_NAME_LC}
+          rm -rf ${REPO_NAME_LC}/apidocs
+          cp -R ../target/reports/apidocs ../doc.openidentityplatform.org/${REPO_NAME_LC}
+          git add -A
+          if ! git diff-index --quiet HEAD; then
+            echo "committing changes to the docs repository"
+            git commit -a -m "upload ${{github.event.repository.name}} docs after deploy ${{ github.sha }}"
+            git push --force https://github.com/OpenIdentityPlatform/doc.openidentityplatform.org.git
+          fi

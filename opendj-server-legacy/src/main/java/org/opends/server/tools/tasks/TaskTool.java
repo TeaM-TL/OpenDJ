@@ -88,7 +88,7 @@ public abstract class TaskTool implements TaskScheduleInformation {
   private TaskScheduleArgs taskScheduleArgs;
 
   /** Argument used to know if the tool should be run in offline mode. */
-  private BooleanArgument runOfflineArg;
+  protected BooleanArgument runOfflineArg;
 
   /** This CLI is always using the administration connector with SSL. */
   private static final boolean alwaysSSL = true;
@@ -157,13 +157,18 @@ public abstract class TaskTool implements TaskScheduleInformation {
       }
 
       runOfflineArg = BooleanArgument.builder("offline")
-                                     .description(INFO_DESCRIPTION_RUN_OFFLINE.get())
-                                     .buildAndAddToParser(argParser);
+              .description(getOfflineDescriptionMessage())
+              .buildAndAddToParser(argParser);
+
     } catch (ArgumentException e) {
       // should never happen
     }
 
     return argParser;
+  }
+
+  protected LocalizableMessage getOfflineDescriptionMessage() {
+    return INFO_DESCRIPTION_RUN_OFFLINE.get();
   }
 
   /**

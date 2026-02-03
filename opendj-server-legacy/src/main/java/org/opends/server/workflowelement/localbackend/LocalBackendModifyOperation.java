@@ -13,6 +13,7 @@
  *
  * Copyright 2008-2011 Sun Microsystems, Inc.
  * Portions Copyright 2011-2016 ForgeRock AS.
+ * Portions Copyright 2024-2025 3A Systems,LLC.
  */
 package org.opends.server.workflowelement.localbackend;
 
@@ -33,6 +34,8 @@ import org.forgerock.opendj.ldap.DN;
 import org.forgerock.opendj.ldap.ModificationType;
 import org.forgerock.opendj.ldap.RDN;
 import org.forgerock.opendj.ldap.ResultCode;
+import org.forgerock.opendj.ldap.controls.RelaxRulesControl;
+import org.forgerock.opendj.ldap.controls.TransactionSpecificationRequestControl;
 import org.forgerock.opendj.ldap.schema.AttributeType;
 import org.forgerock.opendj.ldap.schema.MatchingRule;
 import org.forgerock.opendj.ldap.schema.ObjectClass;
@@ -58,6 +61,7 @@ import org.opends.server.core.ModifyOperationWrapper;
 import org.opends.server.core.PasswordPolicy;
 import org.opends.server.core.PasswordPolicyState;
 import org.opends.server.core.PersistentSearch;
+import org.opends.server.protocols.ldap.LDAPControl;
 import org.opends.server.schema.AuthPasswordSyntax;
 import org.opends.server.schema.UserPasswordSyntax;
 import org.opends.server.types.AcceptRejectWarn;
@@ -75,10 +79,7 @@ import org.opends.server.types.Modification;
 import org.opends.server.types.Privilege;
 import org.opends.server.types.SearchFilter;
 import org.opends.server.types.SynchronizationProviderResult;
-import org.opends.server.types.operation.PostOperationModifyOperation;
-import org.opends.server.types.operation.PostResponseModifyOperation;
-import org.opends.server.types.operation.PostSynchronizationModifyOperation;
-import org.opends.server.types.operation.PreOperationModifyOperation;
+import org.opends.server.types.operation.*;
 
 import static org.opends.messages.CoreMessages.*;
 import static org.opends.server.config.ConfigConstants.*;
@@ -94,7 +95,7 @@ public class LocalBackendModifyOperation
        extends ModifyOperationWrapper
        implements PreOperationModifyOperation, PostOperationModifyOperation,
                   PostResponseModifyOperation,
-                  PostSynchronizationModifyOperation
+                  PostSynchronizationModifyOperation, RollbackOperation
 {
   private static final LocalizedLogger logger = LocalizedLogger.getLoggerForThisClass();
 
@@ -123,6 +124,8 @@ public class LocalBackendModifyOperation
   private boolean permissiveModify;
   /** Indicates whether the request included the password policy request control. */
   private boolean pwPolicyControlRequested;
+  /** Indicates whether the request included the RelaxRules request control. */
+  private boolean RelaxRulesControlRequested=false;
   /** The post-read request control, if present. */
   private LDAPPostReadRequestControl postReadRequest;
   /** The pre-read request control, if present. */
@@ -161,6 +164,11 @@ public class LocalBackendModifyOperation
   {
     super(modify);
     LocalBackendWorkflowElement.attachLocalOperation (modify, this);
+  }
+
+  @Override
+  public boolean isSynchronizationOperation() {
+    return super.isSynchronizationOperation()||RelaxRulesControlRequested;
   }
 
   /**
@@ -460,7 +468,7 @@ public class LocalBackendModifyOperation
         LocalizableMessageBuilder invalidReason = new LocalizableMessageBuilder();
         if (!modifiedEntry.conformsToSchema(null, false, false, false, invalidReason))
         {
-          setResultCode(ResultCode.OBJECTCLASS_VIOLATION);
+          setResultCode(modifiedEntry.getTypeConformsToSchemaError());
           appendErrorMessage(ERR_MODIFY_VIOLATES_SCHEMA.get(entryDN, invalidReason));
           return;
         }
@@ -491,6 +499,9 @@ public class LocalBackendModifyOperation
         }
 
         backend.replaceEntry(currentEntry, modifiedEntry, this);
+        if (trx!=null) {
+          trx.success(this);
+        }
 
         if (isAuthnManagedLocally())
         {
@@ -527,7 +538,7 @@ public class LocalBackendModifyOperation
   {
     try
     {
-      if (!getAccessControlHandler().isAllowed(this))
+      if (!getAccessControlHandler().isAllowed(this) || (RelaxRulesControlRequested && !clientConnection.hasPrivilege(Privilege.BYPASS_ACL, this)))
       {
         setResultCodeAndMessageNoInfoDisclosure(modifiedEntry,
             ResultCode.INSUFFICIENT_ACCESS_RIGHTS,
@@ -684,6 +695,14 @@ public class LocalBackendModifyOperation
       {
         pwPolicyControlRequested = true;
       }
+      else if (RelaxRulesControl.OID.equals(oid))
+      {
+        RelaxRulesControlRequested = true;
+      }
+      else if (TransactionSpecificationRequestControl.OID.equals(oid))
+      {
+        trx=getClientConnection().getTransaction(((LDAPControl)c).getValue().toString());
+      }
       else if (c.isCritical() && !backend.supportsControl(oid))
       {
         throw newDirectoryException(currentEntry, ResultCode.UNAVAILABLE_CRITICAL_EXTENSION,
@@ -691,6 +710,7 @@ public class LocalBackendModifyOperation
       }
     }
   }
+  ClientConnection.Transaction trx=null;
 
   private void processNonPasswordModifications() throws DirectoryException
   {
@@ -1644,5 +1664,10 @@ public class LocalBackendModifyOperation
               return;
           }
       }
+  }
+
+  @Override
+  public void rollback() throws CanceledOperationException, DirectoryException {
+      backend.replaceEntry(modifiedEntry,currentEntry, this);
   }
 }

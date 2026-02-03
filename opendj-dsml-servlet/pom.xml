@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.openidentityplatform.opendj</groupId>
         <artifactId>opendj-parent</artifactId>
-        <version>4.5.2-SNAPSHOT</version>
+        <version>5.0.3-SNAPSHOT</version>
     </parent>
 
     <artifactId>opendj-dsml-servlet</artifactId>
@@ -39,9 +39,8 @@
     <dependencies>
     	<!-- Servlet API -->
         <dependency>
-      		<groupId>javax.servlet</groupId>
-      		<artifactId>javax.servlet-api</artifactId>
-      		<version>3.1.0</version>
+      		<groupId>jakarta.servlet</groupId>
+      		<artifactId>jakarta.servlet-api</artifactId>
             <scope>provided</scope>
     	</dependency>
 
@@ -79,19 +78,26 @@
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>
-        
+
         <dependency>
         	<groupId>com.sun.xml.ws</groupId>
 		    <artifactId>jaxws-ri</artifactId>
-		    <version>2.3.2</version>
+		    <version>4.0.3</version>
 		    <type>pom</type>
         </dependency>
-        
+
         <dependency>
 		    <groupId>jakarta.xml.bind</groupId>
 		    <artifactId>jakarta.xml.bind-api</artifactId>
 		    <version>3.0.1</version>
 		</dependency>
+
+		<dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+            <version>4.0.5</version>
+            <scope>runtime</scope>
+        </dependency>
     </dependencies>
 
     <build><finalName>${project.groupId}.${project.artifactId}</finalName>
@@ -303,6 +309,52 @@
                     </webResources>
                 </configuration>
             </plugin>
+            <plugin>
+		      <groupId>org.codehaus.cargo</groupId>
+	          <artifactId>cargo-maven3-plugin</artifactId>
+	          <extensions>true</extensions>
+			  <executions>
+				    <execution>
+				      <id>start</id>
+				      <phase>pre-integration-test</phase>
+				      <goals>
+				        <goal>start</goal>
+				      </goals>
+				    </execution>
+				    <execution>
+				      <id>stop</id>
+				      <phase>post-integration-test</phase>
+				      <goals>
+				        <goal>stop</goal>
+				      </goals>
+				    </execution>
+				</executions>
+	            <configuration>
+	                <container>
+                        <containerId>${maven.cargo.containerId}</containerId>
+	                    <type>embedded</type>
+	                    <systemProperties>
+	                        <file.encoding>UTF-8</file.encoding>
+	                    </systemProperties>
+	                    <timeout>350000</timeout>
+	                </container>
+	                <deployables>
+	                    <deployable>
+	                    	<type>war</type>
+	                        <properties>
+	                            <context>dsml</context>
+	                        </properties>
+<!--	                        <pingURL>http://localhost:8080/dsml/</pingURL> only POST-->
+	                    </deployable>
+	                </deployables>
+					<configuration>
+				    	<properties>
+				        	<cargo.rmi.port>8206</cargo.rmi.port>
+				        	<cargo.jvmargs>-XX:+UseG1GC -server</cargo.jvmargs>
+				        </properties>
+				    </configuration>
+	            </configuration>
+	        </plugin>
         </plugins>
     </build>
 

@@ -14,7 +14,7 @@
 #
 # Copyright 2008-2010 Sun Microsystems, Inc.
 # Portions Copyright 2010-2016 ForgeRock AS.
-
+# Portions Copyright 2019-2025 3A Systems, LLC.
 #
 # Display an error message
 #
@@ -83,6 +83,14 @@ set_opendj_java_bin() {
   export OPENDJ_JAVA_BIN
 }
 
+set_temp_dir() {
+  OPENDJ_TMP_DIR="${INSTANCE_ROOT}/tmp"
+  if [ ! -d "${OPENDJ_TMP_DIR}" ]; then
+    mkdir ${OPENDJ_TMP_DIR}
+  fi
+  OPENDJ_JAVA_ARGS="${OPENDJ_JAVA_ARGS} -Djava.io.tmpdir=${OPENDJ_TMP_DIR}"
+}
+
 #
 # function that sets the java home
 #
@@ -101,6 +109,7 @@ set_java_home_and_args() {
       OPENDJ_JAVA_ARGS="${PROPERTY_VALUE}"
     fi
   fi
+  set_temp_dir
   set_opendj_java_bin
 }
 
@@ -184,25 +193,18 @@ set_environment_vars() {
   SCRIPT_NAME_ARG=-Dorg.opends.server.scriptName=${SCRIPT_NAME}
 	export SCRIPT_NAME_ARG
 	
-  "${OPENDJ_JAVA_BIN}" --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --version > /dev/null 2>&1
+  "${OPENDJ_JAVA_BIN}" --add-opens java.base/jdk.internal.loader=ALL-UNNAMED --version > /dev/null 2>&1
   RESULT_CODE=${?}
   if test ${RESULT_CODE} -eq 0
   then
-  	export OPENDJ_JAVA_ARGS="$OPENDJ_JAVA_ARGS --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED"
+  	export OPENDJ_JAVA_ARGS="$OPENDJ_JAVA_ARGS --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --add-opens java.base/jdk.internal.loader=ALL-UNNAMED"
   fi
 }
 
 # Configure the appropriate CLASSPATH for server, using Opend DJ logger.
 set_opendj_logger_classpath() {
   CLASSPATH="${INSTANCE_ROOT}/classes"
-  CLASSPATH="${CLASSPATH}:${INSTALL_ROOT}/lib/bootstrap.jar"
-  if [ "${INSTALL_ROOT}" != "${INSTANCE_ROOT}" ]
-  then
-    for JAR in "${INSTANCE_ROOT}/lib/"*.jar
-    do
-      CLASSPATH=${CLASSPATH}:${JAR}
-    done
-  fi
+  CLASSPATH="${CLASSPATH}:${INSTALL_ROOT}/lib/*"
   export CLASSPATH
 }
 

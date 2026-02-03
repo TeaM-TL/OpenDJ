@@ -87,6 +87,7 @@ public final class RemoteConnection implements Closeable
   public RemoteConnection(String host, int port, boolean secure) throws Exception
   {
     this.host = host;
+    System.out.println("connect "+host+":"+port+" "+secure);
     socket = secure ? getSslSocket(host, port) : new Socket(host, port);
     r = new LDAPReader(socket);
     w = new LDAPWriter(socket);
@@ -95,7 +96,7 @@ public final class RemoteConnection implements Closeable
 
   private Socket getSslSocket(String host, int port) throws Exception
   {
-    SSLContext sslCtx = SSLContext.getInstance("TLSv1");
+    SSLContext sslCtx = SSLContext.getInstance("TLS");
     TrustManager[] tm = new TrustManager[] { new BlindTrustManager() };
     sslCtx.init(null, tm, new SecureRandom());
     SSLSocketFactory socketFactory = sslCtx.getSocketFactory();

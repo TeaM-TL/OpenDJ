@@ -22,41 +22,29 @@ jobs:
       - name: Install wine+rpm for distribution
         shell: bash
         run:   |
-          set -x -u -o pipefail
-          source /etc/os-release
-          # Get rid of packages installed from ppa:ondrej/php so that we will be able to install wine32:i386 without conflicts
-          # (see issue https://github.com/actions/virtual-environments/issues/4589)
-          # In detail we:
-          #   1. Remove all packages that ppa:ondrej/php has but plain Ubuntu doesn't, i.e. libzip4 and everything PHP
-          #   2. Revert (remaining) packages that ppa:ondrej/php and plain Ubuntu share, back to the plain Ubuntu version
-          #   3. Assert that no packages from ppa:ondrej/php are left installed
-          dpkg -l | grep '^ii' | fgrep deb.sury.org | awk '{print $2}' | grep '^php' \
-            | xargs -r -t sudo apt-get remove --yes libzip4
-          sudo apt update && sudo apt upgrade
-          dpkg -l | grep '^ii' | fgrep deb.sury.org | grep -v libpcre2-posix3 | awk '{print $2}' | sed "s,\$,/${UBUNTU_CODENAME}," \
-            | xargs -r -t sudo apt-get install --yes --no-install-recommends --allow-downgrades -V
-          ! dpkg -l | grep '^ii' | fgrep deb.sury.org
-          # Install 32bit Wine
-          sudo dpkg --add-architecture i386  # for wine32
-          sudo apt-get update  # again, due to new architecture
-          sudo apt-get install --yes --no-install-recommends -V \
-              wine-stable \
-              wine32:i386
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo dpkg --add-architecture i386
+          sudo mkdir -pm755 /etc/apt/keyrings && sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -c -s)/winehq-$(lsb_release -c -s).sources
+          sudo apt-get update
+          sudo apt install --install-recommends winehq-stable || sudo apt install --install-recommends winehq-staging
           wine --version
-      - uses: actions/checkout@v3
+          version="9.4.0"; sudo wget "https://dl.winehq.org/wine/wine-mono/$version/wine-mono-$version-x86.msi" -O /tmp/wine-mono.msi
+          wine msiexec /i /tmp/wine-mono.msi
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
       - name: Set up Java for publishing to Maven Central Repository OSS
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
-          java-version: '8'
+          java-version: ${{ github.event.workflow_run.head_branch == 'sustaining/4.10.x' && '8' || '11'}}
           distribution: 'temurin'
           server-id: ossrh
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
       - name: Cache Maven packages
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
          path: ~/.m2/repository
          key: ${{ runner.os }}-m2-repository-${{ hashFiles('**/pom.xml') }}
@@ -68,6 +56,7 @@ jobs:
         run: |
            cat <(echo -e "${{ secrets.GPG_PRIVATE_KEY }}") | gpg --batch --import
            gpg --list-secret-keys --keyid-format LONG
+           git config --global user.signingkey B02611B009E5302EB58D102D6C2EDF3C90D33841
       - name: Configure Git User
         run: |
           git config --global user.name "Open Identity Platform Community"
@@ -80,9 +69,9 @@ jobs:
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
           MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 -Dmaven.wagon.http.retryHandler.requestSentEnabled=true -Dmaven.wagon.http.retryHandler.count=10
         if: ${{ env.MAVEN_USERNAME!='' && env.MAVEN_PASSWORD!='' }}
-        run: mvn --batch-mode -Darguments="-Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }}" -DtagNameFormat="${{ github.event.inputs.releaseVersion }}" -DreleaseVersion=${{ github.event.inputs.releaseVersion }} -DdevelopmentVersion=${{ github.event.inputs.developmentVersion }} release:prepare release:perform --file pom.xml
+        run: mvn --batch-mode -Darguments="-Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }}" -DsignTag=true -DtagNameFormat="${{ github.event.inputs.releaseVersion }}" -DreleaseVersion=${{ github.event.inputs.releaseVersion }} -DdevelopmentVersion=${{ github.event.inputs.developmentVersion }} release:prepare release:perform --file pom.xml
       - name: Release on GitHub
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.event.inputs.releaseVersion }}
           tag_name: ${{ github.event.inputs.releaseVersion }}
@@ -91,23 +80,23 @@ jobs:
           fail_on_unmatched_files: false
           generate_release_notes: true
           files: |
-            opendj-server-legacy/target/package/*.zip
-            opendj-ldap-toolkit/target/*.zip
-            opendj-packages/opendj-deb/opendj-deb-standard/target/*.deb
-            opendj-packages/opendj-rpm/opendj-rpm-standard/target/rpm/opendj/RPMS/noarch/*.rpm
-            opendj-packages/opendj-msi/opendj-msi-standard/target/*.msi
-            opendj-packages/opendj-docker/target/Dockerfile.zip
-            opendj-packages/opendj-openshift-template/*.yaml
-            opendj-doc-generated-ref/target/*.zip
-            opendj-dsml-servlet/target/*.war
-            opendj-rest2ldap-servlet/target/*.war
-      - uses: actions/checkout@v3
+            target/checkout/opendj-server-legacy/target/package/*.zip
+            target/checkout/opendj-ldap-toolkit/target/*.zip
+            target/checkout/opendj-packages/opendj-deb/opendj-deb-standard/target/*.deb
+            target/checkout/opendj-packages/opendj-rpm/opendj-rpm-standard/target/rpm/opendj/RPMS/noarch/*.rpm
+            target/checkout/opendj-packages/opendj-msi/opendj-msi-standard/target/*.msi
+            target/checkout/opendj-packages/opendj-docker/target/Dockerfile.zip
+            target/checkout/opendj-packages/opendj-openshift-template/*.yaml
+            target/checkout/opendj-doc-generated-ref/target/*.zip
+            target/checkout/opendj-dsml-servlet/target/*.war
+            target/checkout/opendj-rest2ldap-servlet/target/*.war
+      - uses: actions/checkout@v4
         continue-on-error: true
         with:
           repository: ${{ github.repository }}.wiki
           path: ${{ github.event.repository.name }}.wiki
           fetch-depth: 0
-      - name: Publish docs in wiki
+      - name: Publish docs to wiki
         continue-on-error: true
         shell: bash
         env:
@@ -115,27 +104,46 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run:   |
            cd ${{ github.event.repository.name }}.wiki
-           rm -rf docbkx
-           mv ../opendj-doc-generated-ref/target/docbkx ../${{ github.event.repository.name }}.wiki
+           rm -rf asciidoc
+           mkdir asciidoc
+           cp -R ../target/checkout/opendj-doc-generated-ref/target/asciidoc/pdf ../${{ github.event.repository.name }}.wiki/asciidoc
            git add -A
            git commit -a -m "upload docs after release ${{ github.event.inputs.releaseVersion }}"
            git tag -f ${{ github.event.inputs.releaseVersion }}
            git push --quiet --force
            git push --quiet --force origin ${{ github.event.inputs.releaseVersion }}
+
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: OpenIdentityPlatform/doc.openidentityplatform.org
+          path: doc.openidentityplatform.org
+          token: ${{ secrets.OIP_PAT_GH_TOKEN }}
+      - name: Publish docs to site
+        continue-on-error: true
+        shell: bash
+        run: |
+          export REPO_NAME_LC=$(echo '${{github.event.repository.name}}' | tr '[:upper:]' '[:lower:]')
+          export SITE_DOC_FOLDER=${REPO_NAME_LC}-doc-generated-ref
+          export TAG_NAME='${{github.event.repository.name}}-${{ github.event.inputs.releaseVersion }}'
+          cd doc.openidentityplatform.org
+          git tag -f ${TAG_NAME}
+          git push --quiet --force origin ${TAG_NAME}
+
   release-docker:
     name: Docker release
     runs-on: 'ubuntu-latest'
     needs:
       - release-maven
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.releaseVersion }}
           fetch-depth: 1
           submodules: recursive
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ github.repository }}
@@ -144,29 +152,29 @@ jobs:
             type=raw,value=latest
             type=raw,value=${{ github.event.inputs.releaseVersion }}
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Login to GHCR
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         continue-on-error: true
         with:
           context: ./opendj-packages/opendj-docker
           file: ./opendj-packages/opendj-docker/Dockerfile
           build-args: |
             VERSION=${{ github.event.inputs.releaseVersion }}
-          platforms: linux/amd64,linux/arm64/8
+          platforms: linux/amd64, linux/arm64/8, linux/ppc64le, linux/s390x #, linux/arm/v7
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -176,14 +184,14 @@ jobs:
     needs:
       - release-maven
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.releaseVersion }}
           fetch-depth: 1
           submodules: recursive
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ github.repository }}
@@ -192,29 +200,29 @@ jobs:
             type=raw,value=alpine
             type=raw,value=${{ github.event.inputs.releaseVersion }}-alpine
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Login to GHCR
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push image
         continue-on-error: true
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           context: ./opendj-packages/opendj-docker
           file: ./opendj-packages/opendj-docker/Dockerfile-alpine
           build-args: |
             VERSION=${{ github.event.inputs.releaseVersion }}
-          platforms: linux/amd64,linux/arm64/8, linux/s390x, linux/386, linux/arm/v7, linux/arm/v6, linux/ppc64le
+          platforms: linux/amd64, linux/arm64/8, linux/s390x, linux/ppc64le
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

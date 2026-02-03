@@ -13,6 +13,7 @@
  *
  * Copyright 2008-2010 Sun Microsystems, Inc.
  * Portions Copyright 2011-2016 ForgeRock AS.
+ * Portions Copyright 2025-2026 3A Systems LLC.
  */
 package org.opends.server.replication.service;
 
@@ -39,6 +40,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -371,6 +374,11 @@ public abstract class ReplicationDomain
    * 1000 first entries for this domain.
    */
   protected volatile long generationId;
+
+  /**
+   * Thread pool for export thread tasks
+   */
+  private final ExecutorService exportThreadPool = Executors.newCachedThreadPool();
 
   /**
    * Returns the {@link CSNGenerator} that will be used to
@@ -879,7 +887,10 @@ public abstract class ReplicationDomain
         // Do this work in a thread to allow replay thread continue working
         ExportThread exportThread = new ExportThread(
             initReqMsg.getSenderID(), initReqMsg.getInitWindow());
-        exportThread.start();
+        exportThreadPool.execute(() -> {
+          Thread.currentThread().setName(exportThread.getName());
+          exportThread.run();
+        });
       }
     }
 
@@ -1075,6 +1086,9 @@ public abstract class ReplicationDomain
         This server is not the initiator of the export so there is
         nothing more to do locally.
         */
+        if (logger.isTraceEnabled()) {
+          logger.trace(LocalizableMessage.raw("[IE] got exception" + getName()), de);
+        }
       }
 
       if (logger.isTraceEnabled())
@@ -2480,7 +2494,7 @@ public abstract class ReplicationDomain
       for (RSInfo rsInfo : getRsInfos())
       {
         // the 'empty' RSes (generationId==-1) are considered as good citizens
-        if (rsInfo.getGenerationId() != -1 &&
+        if (rsInfo.getGenerationId() != -1L &&
             rsInfo.getGenerationId() != generationID)
         {
           try
@@ -2522,7 +2536,7 @@ public abstract class ReplicationDomain
     resetGenerationId(-1L);
 
     // check that at least one ReplicationServer did change its generation-id
-    checkGenerationID(-1);
+    checkGenerationID(-1L);
 
     // Reconnect to the Replication Server so that it adopts our GenerationID.
     restartService();

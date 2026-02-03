@@ -13,6 +13,7 @@
   information: "Portions Copyright [year] [name of copyright owner]".
 
   Copyright 2011-2016 ForgeRock AS.
+  Portions Copyright 2025 3A Systems LLC.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
@@ -20,7 +21,7 @@
     <parent>
         <artifactId>opendj-parent</artifactId>
         <groupId>org.openidentityplatform.opendj</groupId>
-        <version>4.5.2-SNAPSHOT</version>
+        <version>5.0.3-SNAPSHOT</version>
     </parent>
 
     <artifactId>opendj-core</artifactId>
@@ -52,13 +53,13 @@
         <dependency>
             <groupId>org.reactivestreams</groupId>
             <artifactId>reactive-streams</artifactId>
-            <version>1.0.0</version>
+            <version>1.0.4</version>
         </dependency>
 
         <dependency>
-            <groupId>io.reactivex.rxjava2</groupId>
+            <groupId>io.reactivex.rxjava3</groupId>
             <artifactId>rxjava</artifactId>
-            <version>2.0.0</version>
+            <version>3.1.10</version>
         </dependency>
 
         <dependency>
@@ -67,8 +68,8 @@
         </dependency>
 
         <dependency>
-          <groupId>com.github.stephenc.jcip</groupId>
-          <artifactId>jcip-annotations</artifactId>
+            <groupId>com.io7m.jcip</groupId>
+            <artifactId>com.io7m.jcip.annotations</artifactId>
         </dependency>
 
         <dependency>
@@ -76,7 +77,7 @@
             <artifactId>build-tools</artifactId>
             <scope>test</scope>
         </dependency>
-        
+
         <!--         java.xml.bind (JAXB) - REMOVED -->
 	    <dependency>
 		  <groupId>javax.xml.bind</groupId>
@@ -91,19 +92,20 @@
 		  <artifactId>jaxb-impl</artifactId>
 		</dependency>
 
-	    <!-- BC FIPS Provider libs -->
-	    <dependency>
-	      <groupId>org.bouncycastle</groupId>
-	      <artifactId>bc-fips</artifactId>
-	      <version>${bc.fips.version}</version>
-	    </dependency>
-	
-	    <dependency>
-	      <groupId>org.bouncycastle</groupId>
-	      <artifactId>bctls-fips</artifactId>
-	      <version>${bctls.fips.version}</version>
-	    </dependency>
-	    
+        <!-- BC FIPS Provider libs -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bc-fips</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bctls-fips</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-fips</artifactId>
+        </dependency>
+
 	     <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -112,8 +114,7 @@
 
 
     <properties>
-        <bc.fips.version>1.0.2.3</bc.fips.version>
-        <bctls.fips.version>1.0.13</bctls.fips.version>
+
 
         <opendj.osgi.import.additional>
             com.sun.security.auth*;resolution:=optional
@@ -143,7 +144,23 @@
                     </execution>
                 </executions>
             </plugin>
-
+		      <plugin>
+		        <groupId>org.codehaus.mojo</groupId>
+		        <artifactId>build-helper-maven-plugin</artifactId>
+		        <executions>
+		          <execution>
+		            <phase>process-sources</phase>
+		            <goals>
+		              <goal>add-source</goal>
+		            </goals>
+		            <configuration>
+		              <sources>
+		                <source>target/generated-sources/messages</source>
+		              </sources>
+		            </configuration>
+		          </execution>
+		         </executions>
+		      </plugin>
             <!-- Retrieve the SCM revision number and store it into the ${buildRevision} property -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -164,6 +181,7 @@
                             org.forgerock.opendj.ldif,
                             com.forgerock.reactive
                         </Export-Package>
+                        <Import-Package>!org.bouncycastle.jcajce.provider</Import-Package>
                         <Build-Maven>Apache Maven ${maven.version}</Build-Maven>
                         <SCM-Revision>${buildRevision}</SCM-Revision>
                         <SCM-Branch>${scmBranch}</SCM-Branch>
@@ -176,11 +194,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
             </plugin>
 
             <plugin>

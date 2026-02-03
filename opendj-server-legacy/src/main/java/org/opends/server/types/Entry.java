@@ -13,6 +13,7 @@
  *
  * Copyright 2006-2010 Sun Microsystems, Inc.
  * Portions Copyright 2011-2016 ForgeRock AS.
+ * Portions Copyright 2023-2024 3A Systems, LLC.
  */
 package org.opends.server.types;
 
@@ -172,7 +173,7 @@ public class Entry
     {
       return map;
     }
-    return new HashMap<>();
+    return new LinkedHashMap<>();
   }
 
 
@@ -1506,7 +1507,15 @@ public class Entry
   }
 
 
-
+  private ResultCode typeConformsToSchemaError = null;
+  
+   /**
+   * Returns a error when entry type does not conform to a schema 
+   * requirements.  Otherwise returns {@code null}
+   **/
+  public ResultCode getTypeConformsToSchemaError() {
+    return typeConformsToSchemaError;
+  }
   /**
    * Indicates whether this entry conforms to the server's schema
    * requirements.  The checks performed by this method include:
@@ -1563,6 +1572,7 @@ public class Entry
                                   boolean validateStructureRules,
                                   LocalizableMessageBuilder invalidReason)
   {
+    typeConformsToSchemaError = OBJECTCLASS_VIOLATION;
     // Get the structural objectclass for the entry.  If there isn't
     // one, or if there's more than one, then see if that's OK.
     AcceptRejectWarn structuralPolicy =
@@ -1639,6 +1649,7 @@ public class Entry
 
       if (validateNameForms)
       {
+        typeConformsToSchemaError = NAMING_VIOLATION;
         /**
          * There may be multiple nameforms registered with this
          * structural objectclass.However, we need to select only one
@@ -2195,7 +2206,7 @@ public class Entry
             logger.error(message);
           }
         }
-        else
+        else if (!structuralClass.equals(parentStructuralClass))
         {
           Collection<NameForm> allNFs = getSchema().getNameForms(parentStructuralClass);
           if(allNFs != null)
@@ -2209,13 +2220,14 @@ public class Entry
                   if (!parentDSR.isObsolete())
                   {
                     LocalizableMessage message = ERR_ENTRY_SCHEMA_VIOLATES_PARENT_DSR.get(dn, parentEntry.getName());
-                    if (structuralPolicy == AcceptRejectWarn.REJECT)
-                    {
-                      invalidReason.append(message);
-                      return false;
-                    }
-                    else if (structuralPolicy == AcceptRejectWarn.WARN)
-                    {
+                    if (System.getProperty("org.openidentityplatform.opendj.ERR_ENTRY_SCHEMA_VIOLATES_PARENT_DSR")!=null) {
+                      if (structuralPolicy == AcceptRejectWarn.REJECT) {
+                        invalidReason.append(message);
+                        return false;
+                      } else if (structuralPolicy == AcceptRejectWarn.WARN) {
+                        logger.error(message);
+                      }
+                    }else{
                       logger.error(message);
                     }
                   }
@@ -2616,7 +2628,7 @@ public class Entry
    */
   public DN getAliasedDN() throws DirectoryException
   {
-    AttributeType aliasType = getSchema().getAttributeType(ATTR_REFERRAL_URL);
+    AttributeType aliasType = getSchema().getAttributeType(ATTR_ALIAS_DN);
     if (aliasType.isPlaceHolder())
     {
       // This should not happen -- The server doesn't have an aliasedObjectName attribute type defined.
@@ -3027,9 +3039,7 @@ public class Entry
   {
     if (attrList.get(0).isVirtual())
     {
-      // The existing attribute is already virtual,
-      // so we've got a different conflict, but we'll let the first win.
-      // FIXME -- Should we handle this differently?
+      attrList.add(collectiveAttr);
       return;
     }
 

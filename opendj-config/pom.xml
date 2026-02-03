@@ -19,7 +19,7 @@
   <parent>
     <groupId>org.openidentityplatform.opendj</groupId>
     <artifactId>opendj-parent</artifactId>
-    <version>4.5.2-SNAPSHOT</version>
+    <version>5.0.3-SNAPSHOT</version>
   </parent>
   <artifactId>opendj-config</artifactId>
   <name>OpenDJ Configuration API</name>
@@ -140,6 +140,24 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>target/generated-sources/config</source>
+                <source>target/generated-sources/messages</source>
+              </sources>
+            </configuration>
+          </execution>
+         </executions>
+      </plugin>
       <!-- Validate core components XML definition files and generate the components. -->
       <plugin>
         <groupId>org.openidentityplatform.opendj</groupId>
@@ -169,8 +187,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-        	 <parallel>methods</parallel>
-          	 <threadCount>1</threadCount>
+			<reuseForks>false</reuseForks>
         </configuration>
       </plugin>
       <plugin>
